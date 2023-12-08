@@ -26,10 +26,14 @@ arg = parser.parse_args()
 
 # 将以@@@@分割的input和output分割开
 # 返回一个个字典，包含input和output(generator)
-def parse_input(text: str):
+def parse_input(text: str, finish_reason: str = 'stop'):
     raw_instructions = re.split('@@@@', text)
     
-    for raw_instruction in raw_instructions:
+    for idx, raw_instruction in enumerate(raw_instructions):
+        # if the decoding stops due to length, the last example is not complete, so we skip it
+        if idx == len(raw_instructions) - 1 and finish_reason == 'length':
+            continue
+        
         pattern = r'(\d+\.)?(input|output|Input|Output):'
         parts = re.split(pattern, raw_instruction)
         if len(parts) != 7:
@@ -37,9 +41,14 @@ def parse_input(text: str):
         
         yield {'input': parts[3].strip(), 'output': parts[6].strip()}
                 
-def encode_prompt(prompt_instructions):
+def encode_prompt(prompt_instructions: List[Dict[str, str]]):
     """Encode multiple prompt instructions into a single string."""
-    prompt = open("./prompt.txt").read()
+    with open("./prompt.txt", "r") as f:
+        prompt = f.read()
+        
+    with open("./customizedGPT.txt", "r") as f:
+        customizedGPT = f.read()
+        prompt = prompt.format(slot=customizedGPT)
 
     for idx, task_dict in enumerate(prompt_instructions):
         input, output = task_dict["input"], task_dict["output"]

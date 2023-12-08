@@ -40,3 +40,70 @@
 {"input": "\"Every cloud has a silver lining.\" 这句话我不太明白，你能解释一下吗？", "output": "这句话的中文意思是：\"乌云后面总有阳光。\" 这是一句英文谚语，意思是在不利或困难的情况中总有积极或有希望的一面，也就是我们常说的“塞翁失马，焉知非福”。"}
 {"input": "我在看书时看到了这句话：\"The data was analyzed using a two-tailed t-test.\" 你能帮我解释一下吗？", "output": "这句话的意思是：\"数据是使用双尾t检验来分析的。\" 双尾t检验是一种统计方法，用于判断两个独立样本的均值是否存在显著差异。这通常在科学研究中使用，以帮助研究者理解数据。"}
 {"input": "\"When in Rome, do as the Romans do.\" 这句话是什么意思呀？", "output": "这句话的意思是：\"入乡随俗。\" 这是一句英语俚语，意思是当你在一个新的地方或文化环境中，应该遵照那里的行为规范或习俗行事。"}
+{"input": "我在读一本英文小说，遇到了这个句子：\"She was lost in the labyrinth of her own thoughts.\" 你能帮我解释一下吗？", "output": "这句话的中文意思是：\"她在自己的思绪中迷失了。\" 这里的 \"labyrinth\" 指的是迷宫，用来比喻她的思绪复杂、错综，使她无法找到方向，即她对自己的感受和想法感到困惑。"}
+{"input": "\"Get your act together\" 这个英文习语是什么意思呢？", "output": "这个英文习语 \"Get your act together\" 的意思是：\"把自己的事情处理好\" 或 \"振作起来\"。它常常用在鼓励或者批评别人在生活或工作中应该更加有组织、有计划，或者更专注的情境中。"}
+{"input": "你能帮我翻译一下这个句子吗？\"His actions spoke volumes about his character.\"", "output": "这句话的中文翻译是：\"他的行为充分展示了他的品性。\" 这里的 \"spoke volumes\" 是一个习语，意思是 \"充分说明\" 或 \"清楚地显示\"，用来形容一些行为或事情对某个主题或问题给出了很强烈的证据或信息。"}
+{"input": "我在阅读一篇关于经济的文章时，遇到了这个词组 \"bullish market\"，你能解释一下它的含义吗？", "output": "\"bullish market\" 是一个经济术语，中文通常翻译为 \"牛市\"。它描述的是市场价格总体上在上涨，投资者对未来市场走势持乐观态度的情况。这与 \"bearish market\"（熊市）相对，\"bearish market\" 描述的是市场价格下跌，投资者对未来市场走势持悲观态度的情况。"}
+{"input": "这句话的翻译我不太确定：\"Discretion is the better part of valor.\" 你能帮我翻译一下吗？", "output": "这句英文谚语的意思是：\"谨慎是勇敢的主要部分。\" 这句话的寓意是，真正的勇敢不仅仅是冲动或鲁莽，而是在了解情况，慎重考虑后采取的行动。在中文里，我们有类似的说法，比如\"大胆为怯，细心为勇\"。"}
+{"input": "这句话我不太明白：\"The city was a beehive of activity.\"", "output": "这句话的中文翻译是：\"这个城市充满了活力。\" 这里的 \"beehive of activity\" 是一个比喻，用来形容一个地方非常繁忙和充满活动，就像蜜蜂在蜂巢中一样忙碌。"}
+{"input": "\"Let's take it from the top.\" 这句话是什么意思呢？", "output": "这句话的意思是：\"让我们从头开始。\" 它常用于音乐、戏剧排练或者在讨论某个主题时，需要重新开始或者从最初的部分开始讲起。"}
+{"input": "你能帮我翻译一下这个句子吗？\"The early bird catches the worm.\"", "output": "这句话的中文翻译是：\"早起的鸟儿有虫吃。\" 这是一个常见的英语谚语，意味着早起或者早开始工作的人有更好的机会获得成功，因为他们比其他人有更多的时间来准备和努力。"}
+{"input": "我正在学习一篇关于气候变化的英文文章，看到一句很长的句子：\"Climate change refers to long-term shifts in temperatures and weather patterns, mainly caused by human activities, especially the burning of fossil fuels, which increase levels of greenhouse gases in the atmosphere, leading to a 'greenhouse effect' that traps heat within the Earth's atmosphere.\" 你能帮我翻译一下并解释一下其中的专业词汇吗？", "output": "这句话的中文意思是：“气候变化指的是温度和天气模式的长期变化，主要是由人类活动引起的，特别是燃烧化石燃料，这增加了大气中的温室气体含量，导致了一种'温室效应'，使热量被地球大气层所困住。”\n气候变化 (Climate change)：通常指的是由于自然因素或人类活动导致的全球或局部气候模式的长期变化。\n\n化石燃料 (Fossil fuels)：主要包括煤炭、石油和天然气，是由古生物的遗体在长时间内经过地质作用形成的燃料。\n\n温室气体 (Greenhouse gases)：主要包括二氧化碳、甲烷和氮氧化物等，它们能吸收并重新辐射地球表面反射的太阳辐射，使地球表面温度上升。\n\n温室效应 (Greenhouse effect)：是指地球大气层对太阳辐射的一种吸收和反射效应，使地球表面温度上升，使生物可以生存。但过量的温室气体会导致全球变暖。"}
+{"input": "我不理解这句话的意思：\"Brevity is the soul of wit.\" 可以帮我解释一下吗？\n5.", "output": "\"Brevity is the soul of wit.\" 这句话的意思是\"简洁是智慧的精髓\"，也就是说，表达清晰、简洁的言语更能体现出智慧。这句话是鼓励我们在表达观点的时候要简洁明了，避免冗长和复杂，这样更能展现出我们的聪明才智。"}
+{"input": "我在看一篇科学论文，遇到了一个很长的句子：\"The process of photosynthesis in plants involves the absorption of sunlight by chlorophyll, which is then used to convert carbon dioxide and water into glucose and oxygen, thereby providing the plant with energy for growth.\" 我不太明白，你能帮我翻译并解释一下吗？\n6.", "output": "这句话的中文意思是：\"植物的光合作用过程涉及到叶绿素对阳光的吸收，然后利用这些阳光将二氧化碳和水转化为葡萄糖和氧气，从而为植物的生长提供能量。\"\n\n光合作用 (Photosynthesis)：是指绿色植物在阳光的照射下，使用叶绿素吸收光能，将水和二氧化碳转化为葡萄糖和氧气的生物化学过程，这是植物生存和生长的主要能量来源。\n\n叶绿素 (Chlorophyll)：是植物叶子中的一种绿色色素，可以吸收阳光的光能，用于进行光合作用。\n\n葡萄糖 (Glucose)：是一种单糖，是植物通过光合作用生产的主要产物，也是植物生长所需的能量源。\n\n这句话的意思是，植物通过光合作用，借助叶绿素吸收阳光，将二氧化碳和水转化为能量丰富的葡萄糖和氧气，为自身生长提供能量。"}
+{"input": "我对这个词组很好奇：\"break the ice\"，它在什么情况下使用？", "output": "“Break the ice”这个词组的直译是“打破冰层”，但它实际的意思是指在社交场合中做出行动以缓和紧张的气氛或是促进陌生人之间的交流。例如，在一个新同事加入团队时，我们可以通过一些轻松的话题或活动来“break the ice”，帮助新同事更快地融入团队。"}
+{"input": "报告中写到\"The fiscal stimulus has invigorated the market sentiment\"，这句话含义是什么？", "output": "这句话的含义是“财政刺激措施振奋了市场情绪”。在这里，“fiscal stimulus”指的是政府为了刺激经济而采取的财政政策措施，如减税或增加政府支出等。而“invigorated”则意味着给予新的活力或强化，所以整句话是说政府的财政政策使得市场情绪变得更加积极和乐观。"}
+{"input": "朋友跟我说了一句：\"You should hedge your bets in this investment.\" 这是什么意思？", "output": "这句话的意思是：“你在这次投资中应该分散风险。” “Hedge your bets”是一个常用的表达，意思是采取预防措施以减少可能的损失或风险。在投资领域，这通常意味着不把所有的资金投在一个选项上，而是分布到不同的投资上，以此来降低单一投资失败造成的影响。"}
+{"input": "我对这个表达很困惑：\"It's raining cats and dogs.\" 真的有这么下雨吗？", "output": "“It's raining cats and dogs”是一个英语习语，用来形容雨下得非常大。当然，并不是真的有猫和狗从天上掉下来，这只是一种夸张的说法，用来形容非常大的雨点。如果你要描述类似的天气情况，可以说“下着倾盆大雨”。"}
+{"input": "在一篇关于宇宙的文章中遇到了这样一句：\"The fabric of spacetime is continuously expanding.\" 宇宙的结构是什么？", "output": "这句话的意思是“时空的结构在不断地扩张。”在物理学和宇宙学中，“spacetime”的结构指的是构成宇宙的四维连续体，包括三个空间维度和一个时间维度。当说“时空的结构在不断地扩张”时，是指宇宙本身在不断地变大，这也是宇宙大爆炸理论的一部分。"}
+{"input": "在学习法律英语时，我遇到了一句不懂的话：\"The defendant is liable for damages.\" 这句话怎么理解？", "output": "这句话的意思是“被告需对损害负责”。在法律英语中，“liable”表示有责任的或者有义务的。所以这句话的意思是，法院认为被告有责任赔偿因其行为所造成的损害或损失。"}
+{"input": "我想知道这个表达：\"Break a leg\" 在演出前为什么会说？", "output": "\"Break a leg\" 是一种在英语中表达祝福、尤其是在表演艺术界祝演出成功的方式。这句话听起来好像是在说坏话，但实际上是一种迷信的说法，人们相信这样说可以避免招来真正的不幸。在中文中我们可能会说“祝你好运”或者“演出成功”来表达相同的意愿。"}
+{"input": "阅读报告里有这么一句：\"The market downturn was precipitated by a bubble burst.\" 这句话怎么理解？", "output": "这句话的意思是：\"市场下跌是由一个泡沫破裂引起的。\" 在经济的语境中，“bubble burst”指的是资产价格远远超出其本身价值的情况（即“泡沫”）突然崩溃，导致价格急剧下降，“market downturn”是指市场趋势向下，股价或资产价值下降。"}
+{"input": "我对这个短语感到困惑：\"Cut to the chase.\" 它是什么意思呢？", "output": "\"Cut to the chase\" 直译为“切入追逐”，实际上是一种俗语，意思是“直接说重点”或“别绕弯子”。起源于早期好莱坞电影，在追逐戏份之前通常有较长的引导，所以这个表达用来告诉人们跳过不必要的部分，直接进入主题或精彩部分。"}
+{"input": "请帮我翻译这句专业术语：\"The patient presents with symptoms indicative of a myocardial infarction.\"", "output": "这句话的中文意思是：“病人呈现的症状表明可能是心肌梗死。” 在医学上，“myocardial infarction”是心肌梗死的意思，通常称为“心梗”，是由于心脏某部分血流阻断导致心肌细胞死亡的情况。"}
+{"input": "“It's raining cats and dogs.” 今天的天气预报里用了这个表达，是什么意思？", "output": "这个表达的意思是“下着倾盆大雨”。它是一种英文俗语，用来形容非常大的雨。这句话的字面意思是天空中猫和狗在下落，但实际上是用来形容雨势之大，好像连猫和狗都在下落一样。"}
+{"input": "电影对白里有这句：\"He's a chip off the old block.\" 这是什么意思？", "output": "这句话的意思是“他和他父亲非常相像”，通常用来描述一个人在性格、外貌或者行为上与其父亲或家族中的长辈极其相似。中文里我们有类似的说法，比如“有其父必有其子”。"}
+{"input": "\"You reap what you sow.\" 这句话的意思是什么呢？", "output": "这句话的意思是：“种瓜得瓜，种豆得豆。” 这是一句英文谚语，意思是你的行为决定了你将得到的结果。你的付出和你的收获是相对应的。"}
+{"input": "\"The early bird catches the worm.\" 这句话是什么意思？", "output": "这句话的意思是：“早起的鸟儿有虫吃。” 这是一句英文谚语，用来鼓励和赞扬早起和早做事的人，因为他们通常能抓住更多的机会。"}
+{"input": "我在看一个科技新闻，里面有这么一句：\"Quantum computing has the potential to revolutionize technology, medicine, and science by providing faster and more efficient processors, sensors, and communication devices.\" 这句话的中文是什么意思？", "output": "这句话的中文意思是：“量子计算有可能彻底改变技术、医疗和科学领域，因为它可以提供更快速、更高效的处理器、传感器和通信设备。”"}
+{"input": "我在看一篇关于心理学的文章，里面有这么一句：\"Cognitive dissonance is the mental discomfort experienced by a person who holds two or more contradictory beliefs, ideas, or values.\" 这句话的中文是什么意思？", "output": "这句话的中文意思是：“认知失调是一个人在持有两个或更多相互矛盾的信念、想法或价值观时所经历的精神不适。”"}
+{"input": "\"The pen is mightier than the sword.\" 这句话的意思是什么呢？", "output": "这句话的意思是：“笔比剑更强大。” 这是一句英文谚语，意思是言论和知识的力量超过了武力。"}
+{"input": "\"Don't count your chickens before they're hatched.\" 这句话是什么意思？", "output": "这句话的意思是：“鸡蛋未孵出小鸡先别数。” 这是一句英文谚语，警告人们不要过早地预计或期待未来的成功。"}
+{"input": "我在学习一篇有关环保的文章，里面有这个词 \"carbon footprint\"，你能告诉我它的含义吗？", "output": "\"carbon footprint\" 在中文中通常被称为 \"碳足迹\"。它是指一个人、组织、事件或产品所产生的温室气体排放量，主要是二氧化碳排放量。这个词汇通常用于描述人类活动对环境和气候变化的影响。"}
+{"input": "\"Actions speak louder than words.\" 这句话的意思是什么呢？", "output": "这句话的意思是：“行动胜于言语。” 这是一句英文谚语，意思是比起说出来，通过实际行动表现出来的东西更为重要和有说服力。"}
+{"input": "\"A stitch in time saves nine.\" 这句话是什么意思？", "output": "这句话的意思是：“及时行事，事半功倍。” 这是一句英文谚语，意思是及时处理问题可以防止问题变得更糟，节省更多的时间和精力。"}
+{"input": "我在观看一个关于体育的讨论中，听到这句话：\"The ball is in your court.\" 这句话的中文是什么意思？", "output": "这句话的中文意思是：“球在你的球场。” 这是一句体育比赛中的用语，用来比喻“现在轮到你做决定或采取行动了。”"}
+{"input": "我在学习一篇医学文献，遇到了这个词 \"placebo effect\"，你能告诉我它的含义吗？", "output": "\"placebo effect\" 在中文中通常被称为 \"安慰剂效应\"。它是指一种心理现象，即当一个人接受了无实际疗效的治疗（如糖丸）后，却感到自己的病情得到了改善，这主要是由于个体的心理预期和信念作用。"}
+{"input": "\"Beauty is in the eye of the beholder.\" 这句话是什么意思？", "output": "这句话的意思是：“情人眼里出西施。” 这是一句英文谚语，意思是判断美的标准因人而异，每个人对美的理解和感受都是不同的。"}
+{"input": "\"Time is money.\" 这句话的意思是什么呢？", "output": "这句话的意思是：“时间就是金钱。” 这是一句英文谚语，意思是要珍惜时间，因为浪费时间就等于浪费金钱。它强调了时间的价值和重要性。"}
+{"input": "\"Where there's smoke there's fire.\" 这句话是什么意思？", "output": "这句话的意思是：“无风不起浪。” 这是一句英文谚语，意思是如果有谣言或疑虑的存在，那么通常就有一些真实的原因或事实作为基础。"}
+{"input": "我在读一篇文章关于气候变化，里面有句话 \"The albedo effect refers to the amount of sunlight that is reflected by the surface of the Earth back into space.\" 我不太明白albedo effect是什么，能帮我解释一下吗？", "output": "“Albedo effect”指的是“反照率效应”，它是指地球表面反射回太空的阳光量。在这里，“albedo”（反照率）是一个衡量地表或其他物体反射阳光能力的术语，反照率越高，反射的阳光就越多。这个效应对地球的气候有重要影响，因为它决定了地球吸收的热量量。"}
+{"input": "刚看了一部电影，有个场景提到 \"She has been bitten by the acting bug ever since she was a little girl.\" 这里的 \"bitten by the acting bug\" 是什么意思呢？", "output": "“Bitten by the acting bug”这个短语的意思是“被表演的热情所感染”，形容一个人对表演产生了浓厚的兴趣和热爱。常用来形容某人对某项活动非常热衷，以至于像是被“咬了一口”（即“bug”在这里比喻为一种让人着迷的病毒或者昆虫）就无法停止。"}
+{"input": "老师给我们布置了一篇论文，要求我们探讨 \"The implications of artificial intelligence in modern warfare.\" 这个 topic 我有点摸不着头脑，能帮我解释一下这是什么意思吗？", "output": "这个话题要求你探讨的是“人工智能在现代战争中的影响”。这里，“implications”指的是可能的后果或重要的影响。你需要考虑人工智能如何改变战争的方式，比如无人机的使用、自动化武器系统、以及军事决策中的人工智能应用等。这个话题要求你思考人工智能带来的技术变革如何影响现代战争的战术、战略和伦理。"}
+{"input": "在准备GRE考试，碰到一个句子 \"The author's prose is imbued with a sense of melancholy.\" 中的 \"imbued\" 这个词不懂，能解释一下吗？", "output": "“Imbued”这个词的含义是“充满的”或“渗透的”。这句话的意思是“作者的散文充满了忧郁的感觉”。这里的“melancholy”意味着一种深沉的悲伤或忧郁。所以如果说一个文本或作品被某种情感“imbued”，就是说那种情感已经深深地渗入到了文本或作品的每一个部分。"}
+{"input": "今天跟朋友聊天，他说 \"I'm feeling under the weather today.\" 这个词组 \"under the weather\" 是啥意思啊？", "output": "词组“under the weather”在中文里的意思是“觉得身体不适”，或者“有点儿不舒服”。通常人们在感冒或轻微生病时会用这个表达。不是指非常严重的病，而是轻度的不适感。"}
+{"input": "最近在学习经济学，碰到了这个词汇“inflation”，它在经济学中是什么意思？", "output": "“inflation”在经济学中指的是通货膨胀，即货币的购买力下降和通用价格水平的持续上升。比如，如果一国的通货膨胀率很高，那么人们今天用同样数量的钱所能购买的商品和服务将会比昨天少。理解这个概念对于掌握经济学的基本原理很重要。"}
+{"input": "\"The quick brown fox jumps over the lazy dog\" 这句话是什么意思，为什么经常看到？", "output": "这句话意思是“一只敏捷的棕色狐狸跳过了一只懒惰的狗”，它经常被用来展示或测试字体和键盘，因为这句话包含了英文中的所有26个字母。这可以帮助人们检查所有的字母是否都能正确显示或被输入。"}
+{"input": "我在准备面试，能帮我将“Can you elaborate on your last job experience?”翻译一下吗？", "output": "这句话的中文意思是“您能详细说明一下您上一份工作的经历吗？”在面试中，面试官可能会这样询问来了解你的工作背景和你在之前工作中的具体职责与成就。"}
+{"input": "在一次演讲中听到了这个短语“break the ice”，它是什么意思呢？", "output": "“break the ice”这个短语意味着打破沉默或紧张的气氛，使人们感到更放松和友好。比如，在一个聚会或会议开始时，主持人可能会讲一个笑话或开展一个小游戏来“break the ice”，即让大家活跃起来。"}
+{"input": "我的英语作业里让我解释“procrastination”这个概念，但我不明白它是什么。", "output": "“procrastination”就是拖延症的意思。它描述了一种倾向于推迟或延迟完成任务的行为，即使知道这样可能会造成不必要的压力或问题。比如说，有的学生常常会拖到最后一刻才开始做作业，这就是一种典型的“procrastination”行为。"}
+{"input": "经常在电影中听到“Once upon a time”，它的中文是什么？", "output": "“Once upon a time”是一个常用于英语童话故事开头的短语，中文通常译为“很久很久以前”。它用于引入一个遥远的过去和一个充满魔法和冒险的故事世界。"}
+{"input": "我在阅读科技杂志时，看到了“artificial intelligence”，能解释一下吗？", "output": "“artificial intelligence”指的是人工智能，它是计算机科学的一个分支，专门研究和开发模拟人类智能行为的机器或软件。人工智能可以在数据分析、自动化任务处理等领域发挥重要作用。"}
+{"input": "\"The stock market is experiencing a bull run.\" 这句话中的\"bull run\"是什么意思？", "output": "“bull run”在金融领域指的是牛市，意味着股票市场的股价正在持续上涨。人们通常用“bull”或“bullish”来形容市场上涨的趋势，因为牛攻击时头会向上抬，这象征着价格的上升。相对应的，“bear”或“bearish”则用来形容市场下跌的趋势。"}
+{"input": "老师布置了一道题目：“Please delineate the main arguments presented in the article.”这句话怎么翻译？", "output": "这句话的中文意思是：“请详细描述文章中提出的主要论点。”“delineate”这个词的意思是详细描述或描绘，通常用于要求清晰地说明或解释某个概念、计划或论点。"}
+{"input": "我在研究历史文献时遇到了这个词“feudalism”，它在历史学上是怎样的一个概念？", "output": "“feudalism”指的是封建主义，是一种历史时期的社会、经济和政治结构。在封建制度中，领主掌握土地和权力，而农民或佃农则需要为领主提供劳动或其他服务，以换取保护和生活所需的土地使用权。"}
+{"input": "我在准备一场商务演讲，想知道“leverage”在这个场合通常是什么意思？", "output": "在商务领域，“leverage”通常指的是用小量资本获取较大的投资回报，或者更一般地，利用现有资源来最大化优势。例如，一个公司可能会“leverage”它的品牌知名度来扩大市场份额。"}
+{"input": "在学习法律英语时，这个词“litigation”是什么意思？", "output": "“litigation”指的是诉讼，就是通过法律程序在法庭上解决争端的过程。涉及“litigation”的时候，往往意味着有法律诉求的一方将另一方告上法庭，要求司法判决。"}
+{"input": "我在读一篇关于心理学的文章，里面提到了“cognitive dissonance”，这是什么意思？", "output": "“cognitive dissonance”是心理学术语，指的是个人在持有两个或多个相冲突的信念、想法或价值观时所经历的心理不适。比如，一个人同时认为健康饮食很重要，但又无法抵制高热量食品的诱惑，这种情况就可能产生“cognitive dissonance”。"}
+{"input": "我对表达“Beat around the bush”很好奇，它是什么含义？", "output": "“Beat around the bush”是一个英语成语，意思是不直接或不清楚地说出某事，而是绕弯子说话。中文里有类似的表达，就是“拐弯抹角”。比如，如果有人在回答问题时没有直接回答，就可以说他们在“beat around the bush”。"}
+{"input": "我在一本小说中看到这句话，\"Don't count your chickens before they're hatched.\"，你能帮我解释一下吗？", "output": "这句话的字面意思是“在鸡蛋孵出小鸡之前，不要去数小鸡”。这是一句英文谚语，意思是不要过早地庆祝自己尚未实现的成功，或提醒人们不要预期尚未发生的事情。"}
+{"input": "我在一篇科学文章中看到了这个单词\"photosynthesis\"，你能帮我解释一下吗？", "output": "\"Photosynthesis\"的中文意思是“光合作用”。这是一个生物学术语，是指植物、藻类和某些细菌使用阳光作为能源，将二氧化碳和水转化为氧气和葡萄糖的过程。"}
+{"input": "我在一篇文章中看到这句话，\"The pen is mightier than the sword.\"，你能帮我解释一下吗？", "output": "\"The pen is mightier than the sword.\" 的中文意思是“笔比剑更强大。” 这是一句英文谚语，意思是说话和写作的力量（代表言论和知识）超过使用武力。"}
+{"input": "我在一篇经济学文章中遇到了这个词\"macroeconomics\"，你能帮我解释一下吗？", "output": "\"Macroeconomics\"的中文意思是“宏观经济学”。它是经济学的一个分支，主要研究整体经济现象，如总体就业、物价总水平（通货膨胀）、经济增长等。"}
+{"input": "我读到这句话：\"It's raining cats and dogs.\"，这是什么意思？", "output": "\"It's raining cats and dogs.\" 的中文意思是“下着倾盆大雨。” 这是一种英文俚语，用来形容雨下得非常大。"}
+{"input": "我在一篇文章中看到了这个词\"schadenfreude\"，你能帮我解释一下吗？", "output": "\"Schadenfreude\"是一个德语词汇，被借用到英文中。它指的是一个人从别人的不幸中获得快乐的情绪。在中文中，我们可能会使用“幸灾乐祸”这个词来形容类似的情感。"}
+{"input": "我读到这句话：\"Bite the bullet.\"，这是什么意思？", "output": "\"Bite the bullet.\" 的中文意思是“硬着头皮去做”。这是一种英文俚语，用来形容不得不去面对或处理一些困难或不愉快的事情。"}
+{"input": "这句话是什么意思：\"The ball is in your court.\"？", "output": "这句话的中文意思是“球在你的场内”。这是一种英文俚语，意思是下一步的决定权在你手中，或者说轮到你采取行动了。"}
+{"input": "这句话是什么意思：\"Every cloud has a silver lining.\"？", "output": "这句话的中文意思是“乌云背后总有一线银边”。这是一种英文谚语，意思是在最困难的情况下总会有一线希望，或者说无论多么糟糕的事情，总有积极的一面。"}
+{"input": "这句话是什么意思：\"Break a leg.\"？", "output": "这句话的中文意思是“祝你成功”。这是一种英文俚语，在美国和英国的表演艺术界，人们常常在演出之前对演员说这句话，希望他们的演出成功。虽然字面意思是“摔断腿”，但实际上是一种反语，希望演员演出顺利。"}
+{"input": "这句话是什么意思：\"Don't put all your eggs in one basket.\"？", "output": "这句话的中文意思是“不要把所有的鸡蛋放在一个篮子里”。这是一种英文谚语，意思是你不应该把所有的资源或努力都集中在一个方面，因为如果那个方面出问题，你就会失去全部。这经常用于投资领域，提醒人们要分散风险。"}
