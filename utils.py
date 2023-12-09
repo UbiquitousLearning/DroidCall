@@ -10,20 +10,6 @@ from transformers import PreTrainedTokenizer, AutoTokenizer, LlamaForCausalLM
 import torch
 import os
 
-os.environ["TOKENIZERS_PARALLELISM"] = "true"
-os.environ["TRANSFORMERS_OFFLINE"] = "1"
-
-parser = argparse.ArgumentParser(description='args for utils.py')
-parser.add_argument('--input', type=str, help='input file', default='tasks.txt')
-parser.add_argument('--output', type=str, help='output file', default='seeds.jsonl')
-parser.add_argument('-f', type=str, help='specify the function to run', default='extract_input_output')
-parser.add_argument('--num_tasks', type=int, help='number of tasks used in prompt', default=3)
-parser.add_argument('--num_prompts', type=int, help='number of prompts to generate', default=1)
-parser.add_argument('--similarity_bound', type=float, help='similarity bound to filter prompts', default=0.7)
-parser.add_argument('--model_path', type=str, help='tokenizer and model path', default='hfl/chinese-alpaca-2-7b')
-
-arg = parser.parse_args()
-
 # 将以@@@@分割的input和output分割开
 # 返回一个个字典，包含input和output(generator)
 def parse_input(text: str, finish_reason: str = 'stop'):
@@ -57,6 +43,11 @@ def encode_prompt(prompt_instructions: List[Dict[str, str]]):
         prompt += "@@@@\n"
     return prompt
 
+def generate_prompts_(tasks: List[Dict[str, str]], num_prompts: int, num_tasks: int):
+    for _ in range(num_prompts):
+        sample_tasks = random.sample(tasks, num_tasks)
+        yield encode_prompt(sample_tasks)
+
 def generate_prompts(file: str, num_prompts: int, num_tasks: int):
     tasks = []
     with open(file, 'r') as f:
@@ -64,9 +55,7 @@ def generate_prompts(file: str, num_prompts: int, num_tasks: int):
             j = json.loads(line)
             tasks.append(j)
     
-    for _ in range(num_prompts):
-        sample_tasks = random.sample(tasks, num_tasks)
-        yield encode_prompt(sample_tasks)
+    yield from generate_prompts_(tasks, num_prompts, num_tasks)
         
 class GenerateResponse:
     """
@@ -169,7 +158,7 @@ class SimilarityRecord:
         self.sentences.append(sentence)
 
         
-def extract_input_output():
+def extract_input_output(arg):
     """
     python utils.py -f extract_input_output\
         --input input_file\
@@ -207,7 +196,7 @@ def extract_input_output():
             f.write(json.dumps(instruction, ensure_ascii=False) + '\n')
                 
         
-def gen_prompts():
+def gen_prompts(arg):
     """
     python utils.py -f gen_prompts\
         --input input_file\
@@ -224,5 +213,19 @@ def gen_prompts():
     
 
 if __name__ == '__main__':
-    globals()[arg.f]()
+    os.environ["TOKENIZERS_PARALLELISM"] = "true"
+    os.environ["TRANSFORMERS_OFFLINE"] = "1"
+
+    parser = argparse.ArgumentParser(description='args for utils.py')
+    parser.add_argument('--input', type=str, help='input file', default='tasks.txt')
+    parser.add_argument('--output', type=str, help='output file', default='seeds.jsonl')
+    parser.add_argument('-f', type=str, help='specify the function to run', default='extract_input_output')
+    parser.add_argument('--num_tasks', type=int, help='number of tasks used in prompt', default=3)
+    parser.add_argument('--num_prompts', type=int, help='number of prompts to generate', default=1)
+    parser.add_argument('--similarity_bound', type=float, help='similarity bound to filter prompts', default=0.7)
+    parser.add_argument('--model_path', type=str, help='tokenizer and model path', default='hfl/chinese-alpaca-2-7b')
+
+    arg = parser.parse_args()
+
+    globals()[arg.f](arg)
     
