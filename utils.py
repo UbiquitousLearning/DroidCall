@@ -38,8 +38,8 @@ def encode_prompt(prompt_instructions: List[Dict[str, str]]):
 
     for idx, task_dict in enumerate(prompt_instructions):
         input, output = task_dict["input"], task_dict["output"]
-        prompt += f"{idx + 1}. input:{input}\n"
-        prompt += f"{idx + 1}. output:{output}\n"
+        prompt += f"{idx + 1}.input: {input}\n"
+        prompt += f"{idx + 1}.output: {output}\n"
         prompt += "@@@@\n"
     return prompt
 
