@@ -2,32 +2,82 @@ import re
 import argparse
 import json
 import random
-from typing import List, Dict, Tuple, Optional, Union, Callable
+from typing import List, Dict, Tuple, Optional, Union, Callable, Generator
 from rouge_score import rouge_scorer
 import multiprocessing as mp
 from functools import partial
 from transformers import PreTrainedTokenizer, AutoTokenizer, LlamaForCausalLM
-import torch
 import os
+from abc import ABC, abstractmethod
+
+
+# a text parser that can parse the text to specific object by a specific rule.
+class TextParser(ABC):
+    @abstractmethod
+    def parse(self, text: str)-> List[Dict[str, str]]:
+        pass
+    
+    def __call__(self, text: str)-> List[Dict[str, str]]:
+        return self.parse(text)
+    
+
+class InputOutputParser(TextParser):
+    def parse(self, text: str)-> List[Dict[str, str]]:
+        pattern = r'(\d+\.)?(input|output|Input|Output):'
+        parts = re.split(pattern, text.strip())
+        if len(parts) != 7:
+            return {}
+        return {'input': parts[3].strip(), 'output': parts[6].strip()}
+        
+
+class JsonParser(TextParser):
+    def parse(self, text: str)-> List[Dict[str, str]]:
+        return json.loads(text.strip())
+
+
+DEFAULT_PARSER = InputOutputParser()
 
 # 将以@@@@分割的input和output分割开
 # 返回一个个字典，包含input和output(generator)
-def parse_input(text: str, finish_reason: str = 'stop'):
+def parse_input(text: str, parser: TextParser = DEFAULT_PARSER)->Generator[Dict[str, str], None, None]:
     raw_instructions = re.split('@@@@', text)
     
-    for idx, raw_instruction in enumerate(raw_instructions):
-        # if the decoding stops due to length, the last example is not complete, so we skip it
-        if idx == len(raw_instructions) - 1 and finish_reason == 'length':
+    for _, raw_instruction in enumerate(raw_instructions):
+        d = parser(raw_instruction)
+        
+        if not d:
             continue
         
-        pattern = r'(\d+\.)?(input|output|Input|Output):'
-        parts = re.split(pattern, raw_instruction)
-        if len(parts) != 7:
-            continue
-        
-        yield {'input': parts[3].strip(), 'output': parts[6].strip()}
+        yield d
                 
-def encode_prompt(prompt_instructions: List[Dict[str, str]]):
+                
+class TaskFormatter(ABC):  
+    @abstractmethod
+    def format(self, task: Dict[str, str])-> str:
+        pass
+    
+    def __call__(self, task: Dict[str, str])-> str:
+        return self.format(task)
+
+class InputOutputFormatter(TaskFormatter):
+    def __init__(self):
+        super().__init__()
+        self.num = 0
+    
+    def format(self, task: Dict[str, str])-> str:
+        self.num += 1
+        return f"{self.num}.input: {task['input']}\n{self.num}.output: {task['output']}\n"
+    
+
+class JsonFormatter(TaskFormatter):
+    def format(self, task: Dict[str, str])-> str:
+        return json.dumps(task, ensure_ascii=False, indent=2)
+
+
+DEFAULT_FORMATTER = InputOutputFormatter()
+
+
+def encode_prompt(prompt_instructions: List[Dict[str, str]], formatter: TaskFormatter = DEFAULT_FORMATTER)->str:
     """Encode multiple prompt instructions into a single string."""
     with open("./prompt.txt", "r") as f:
         prompt = f.read()
@@ -37,11 +87,11 @@ def encode_prompt(prompt_instructions: List[Dict[str, str]]):
         prompt = prompt.format(slot=customizedGPT)
 
     for idx, task_dict in enumerate(prompt_instructions):
-        input, output = task_dict["input"], task_dict["output"]
-        prompt += f"{idx + 1}.input: {input}\n"
-        prompt += f"{idx + 1}.output: {output}\n"
-        prompt += "@@@@\n"
+        task_text = formatter(task_dict)
+        prompt += task_text
+        prompt += "\n@@@@\n"
     return prompt
+
 
 def generate_prompts_(tasks: List[Dict[str, str]], num_prompts: int, num_tasks: int):
     for _ in range(num_prompts):
@@ -56,8 +106,51 @@ def generate_prompts(file: str, num_prompts: int, num_tasks: int):
             tasks.append(j)
     
     yield from generate_prompts_(tasks, num_prompts, num_tasks)
+     
+     
+class GenerateResponse(ABC):
+    
+    def __init__(self, obj: Dict):
+        self.obj = obj
         
-class GenerateResponse:
+    @abstractmethod
+    def __call__(self, prefix:str, queries: List[str], **kwargs):
+        pass
+    
+
+from openai import OpenAi
+
+class OpenAiGenerateResponse(GenerateResponse):
+    client: OpenAi
+    model: str
+    system_prompt: str
+    
+    def __init(self, obj: Dict):
+        super().__init__(obj)
+        self.client = self.obj['client']
+        self.model = self.obj['model']
+        self.system_prompt = self.obj['system_prompt']
+        
+    def __call__(self, prefix:str, queries: List[str], **kwargs):
+        responses = []
+        for query in queries:
+            prompt = f"{prefix} {query}"
+            completion = self.client.chat.client.chat.completions.create(
+                model = self.model,
+                messages = [
+                    {"role": "system", "content": self.system_prompt},
+                    {"role": "user", "content": prompt}
+                ],
+                **kwargs
+            )
+            resp = {'text': completion.choices[0].message.content, 'finish_reason': completion.choices[0].finish_reason}
+            responses.append(resp)
+        
+        return responses
+            
+    
+
+class HuggingfaceGenerateResponse(GenerateResponse):
     """
     a callable class that can generate response from a prefix and a list of queries.
     tokenizer: a PreTrainedTokenizer that can tokenize the sentence to help calculate similarity.
@@ -87,9 +180,10 @@ class GenerateResponse:
     
     SYSTEM_PROMPT = """You are a helpful assistant. 你是一个乐于助人的助手。"""
     
-    def __init__(self, tokenizer: PreTrainedTokenizer, model: LlamaForCausalLM):
-        self.tokenizer = tokenizer
-        self.model = model
+    def __init__(self, obj: Dict):
+        super().__init__(obj)
+        self.tokenizer = self.obj['tokenizer']
+        self.model = self.obj['model']
     
     def __call__(self, prefix:str, queries: List[str], **kwargs):
         sentences = [
@@ -99,6 +193,7 @@ class GenerateResponse:
             ) for q in queries
         ]
         inp = self.tokenizer(sentences, padding=True, return_tensors="pt").to(self.model.device)
+        import torch
         with torch.no_grad():
             out = self.model.generate(**inp, **kwargs)
         r = self.tokenizer.batch_decode(out, skip_special_tokens=True)
@@ -112,8 +207,6 @@ class GenerateResponse:
         
         return res
     
-
-from abc import ABC, abstractmethod
 
 class Tokenizer(ABC):
     """

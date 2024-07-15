@@ -28,7 +28,9 @@ if __name__ == '__main__':
     print(f"model loaded to {model.device}")
     
     record = SimilarityRecord(tokenizer)
-    generate_response = GenerateResponse(huggingface_tokenizer, model)
+    generate_response = GenerateResponse(
+        {'tokenizer': tokenizer, 'model': model}
+    )
     
     all_tasks = []
     with open(arg.seed, 'r') as f:
@@ -61,6 +63,8 @@ if __name__ == '__main__':
                                             , eos_token_id=tokenizer.eos_token_id)
                 
                 for resp in resps:
+                    if resp['finish_reason'] == 'length':
+                        continue
                     for task in parse_input(**resp):
                         most_similar, score = record.update(task['input'], arg.similarity_bound)
                         if score > arg.similarity_bound:
