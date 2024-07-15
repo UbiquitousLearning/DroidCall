@@ -111,32 +111,68 @@ class GenerateResponse:
             res[i] = resp
         
         return res
+    
+
+from abc import ABC, abstractmethod
+
+class Tokenizer(ABC):
+    """
+    a tokenizer interface that can tokenize and detokenize the sentence.
+    
+    tokenize(sentence: str)-> List[str]: tokenize the sentence to a list of tokens.
+    detokenize(tokens: List[str])-> str: detokenize the tokens to a sentence.
+    """
+    @abstractmethod
+    def tokenize(self, sentence: str)-> List[str]:
+        pass
+
+    @abstractmethod
+    def detokenize(self, tokens: List[str])-> str:
+        pass
+    
+    
+class HuggingFaceTokenizer(Tokenizer):
+    """
+    a tokenizer that can tokenize and detokenize the sentence using HuggingFace Tokenizer.
+    tokenizer: a PreTrainedTokenizer that can tokenize the sentence.
+    """
+    tokenizer: PreTrainedTokenizer
+    
+    def __init__(self, tokenizer: PreTrainedTokenizer):
+        self.tokenizer = tokenizer
+        
+    def tokenize(self, sentence: str)-> List[str]:
+        return self.tokenizer.tokenize(sentence)
+    
+    def detokenize(self, tokens: List[str])-> str:
+        return self.tokenizer.convert_tokens_to_string(tokens)
+    
         
 class SimilarityRecord:
     """
     a record to record the sentences that have been added, and filter out the similar sentences.
-    tokenizer: a PreTrainedTokenizer that can tokenize the sentence to help calculate similarity.
+    tokenizer: a Tokenizer that can tokenize the sentence to help calculate similarity.
     num_processes: number of processes to calculate similarity.
     
     updata(sentence: str, bound: float = 0.7)-> (str, float): check if the sentence is similar to the sentences in the record.
         if its similarity is larger than bound, return the most similar sentence and its similarity but not add the sentence to the record.
         else add the sentence to the record and return the most similar sentence and its similarity.
     """
-    tokenizer: PreTrainedTokenizer
+    tokenizer: Tokenizer
     num_processes: int
     sentences: List[List[str]] # List of tokenized sentences
     
-    def __init__(self, tokenizer, num_processes=mp.cpu_count()):        
+    def __init__(self, tokenizer: Tokenizer, num_processes: int=mp.cpu_count()):
         self.tokenizer = tokenizer
         self.num_processes = num_processes
         self.sentences = []
         
     @staticmethod
-    def _score(sentence: List[str], other_sentence: List[str])-> (List[str], float):
+    def _score(sentence: List[str], other_sentence: List[str])-> tuple[List[str], float]:
         scores = rouge_scorer._score_lcs(sentence, other_sentence)
         return other_sentence, scores.fmeasure
         
-    def update(self, sentence: str, bound: float = 0.7)-> (str, float):
+    def update(self, sentence: str, bound: float = 0.7)-> tuple[str, float]:
         sentence = self.tokenizer.tokenize(sentence)
 
         if len(self.sentences) == 0:
@@ -151,7 +187,7 @@ class SimilarityRecord:
         if score <= bound:
             self.sentences.append(sentence)
         
-        return self.tokenizer.convert_tokens_to_string(most_similar), score
+        return self.tokenizer.detokenize(most_similar), score
     
     def add(self, sentence: str):
         sentence = self.tokenizer.tokenize(sentence)
@@ -175,7 +211,8 @@ def extract_input_output(arg):
     except:
         print("Error reading input file")
         
-    tokenizer = AutoTokenizer.from_pretrained(arg.model_path)
+    huggingface_tokenizer = AutoTokenizer.from_pretrained(arg.model_path)
+    tokenizer = HuggingFaceTokenizer(huggingface_tokenizer)
     print('tokenizer loaded')
     r = SimilarityRecord(tokenizer)
     try:

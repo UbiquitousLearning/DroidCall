@@ -22,12 +22,13 @@ if __name__ == '__main__':
     arg = parser.parse_args()
     
     print(f'started to load model from {arg.model_path}')
-    tokenizer = AutoTokenizer.from_pretrained(arg.model_path)
+    huggingface_tokenizer = AutoTokenizer.from_pretrained(arg.model_path)
+    tokenizer = HuggingFaceTokenizer(huggingface_tokenizer)
     model = AutoModelForCausalLM.from_pretrained(arg.model_path, device_map="auto")
     print(f"model loaded to {model.device}")
     
     record = SimilarityRecord(tokenizer)
-    generate_response = GenerateResponse(tokenizer, model)
+    generate_response = GenerateResponse(huggingface_tokenizer, model)
     
     all_tasks = []
     with open(arg.seed, 'r') as f:
