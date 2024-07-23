@@ -2,7 +2,7 @@ import re
 import argparse
 import json
 import random
-from typing import List, Dict, Tuple, Optional, Union, Callable, Generator
+from typing import List, Dict, Tuple, Optional, Union, Callable, Generator, Iterable
 from rouge_score import rouge_scorer
 import multiprocessing as mp
 from functools import partial
@@ -17,22 +17,55 @@ class TextParser(ABC):
     def parse(self, text: str)-> List[Dict[str, str]]:
         pass
     
-    def __call__(self, text: str)-> List[Dict[str, str]]:
+    def __call__(self, text: str)-> Generator[Dict[str, str], None, None]:
         return self.parse(text)
     
 
 class InputOutputParser(TextParser):
-    def parse(self, text: str)-> List[Dict[str, str]]:
+    def _parse_item(self, text: str)-> Dict[str, str]:
         pattern = r'(\d+\.)?(input|output|Input|Output):'
         parts = re.split(pattern, text.strip())
         if len(parts) != 7:
             return {}
         return {'input': parts[3].strip(), 'output': parts[6].strip()}
+    
+    def parse(self, text: str)-> Generator[Dict[str, str], None, None]:
+        raw_instructions = re.split('@@@@', text)
+        raw_instructions = raw_instructions[1:-1] # remove the first and last since GPT often generates output that doesn't match the pattern at the beginning and end.
+        
+        for _, raw_instruction in enumerate(raw_instructions):
+            d = self._parse_item(raw_instruction)
+            
+            if not d:
+                continue
+            
+            yield d
         
 
 class JsonParser(TextParser):
-    def parse(self, text: str)-> List[Dict[str, str]]:
-        return json.loads(text.strip())
+    def parse(self, text: str)-> Generator[Dict[str, str], None, None]:
+        # 更新后的正则表达式模式，用于匹配JSON对象或数组
+        json_pattern = r'\{(?:[^{}]|(?:\{[^{}]*\}))*\}|\[(?:[^\[\]]|(?:\[[^\[\]]*\]))*\]'
+        
+        # 使用finditer来查找所有匹配的JSON字符串
+        matches = re.finditer(json_pattern, text)
+        
+        for match in matches:
+            json_string = match.group()
+            try:
+                # 解析JSON字符串为Python对象
+                python_obj = json.loads(json_string)
+                if isinstance(python_obj, list):
+                    for item in python_obj:
+                        yield item
+                else:
+                    yield python_obj
+            except json.JSONDecodeError as e:
+                print(f"JSON decoding error: {e}")
+                continue
+            except Exception as e:
+                print(f"An error occurred: {e}")
+                continue
 
 
 DEFAULT_PARSER = InputOutputParser()
@@ -40,16 +73,7 @@ DEFAULT_PARSER = InputOutputParser()
 # 将以@@@@分割的input和output分割开
 # 返回一个个字典，包含input和output(generator)
 def parse_input(text: str, parser: TextParser = DEFAULT_PARSER)->Generator[Dict[str, str], None, None]:
-    raw_instructions = re.split('@@@@', text)
-    raw_instructions = raw_instructions[1:-1] # remove the first and last since GPT often generates output that doesn't match the pattern at the beginning and end.
-    
-    for _, raw_instruction in enumerate(raw_instructions):
-        d = parser(raw_instruction)
-        
-        if not d:
-            continue
-        
-        yield d
+    yield from parser.parse(text)
                 
                 
 class TaskFormatter(ABC):  
