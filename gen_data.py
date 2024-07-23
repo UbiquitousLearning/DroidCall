@@ -29,7 +29,7 @@ if __name__ == '__main__':
     
     record = SimilarityRecord(tokenizer)
     generate_response = GenerateResponse(
-        {'tokenizer': tokenizer, 'model': model}
+        **{'tokenizer': tokenizer, 'model': model}
     )
     
     all_tasks = []
@@ -65,7 +65,7 @@ if __name__ == '__main__':
                 for resp in resps:
                     if resp['finish_reason'] == 'length':
                         continue
-                    for task in parse_input(**resp):
+                    for task in parse_input(resp['text']):
                         most_similar, score = record.update(task['input'], arg.similarity_bound)
                         if score > arg.similarity_bound:
                             print(f"similarity score: {score}\n task: {task}\n most similar: {most_similar}\n")

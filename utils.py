@@ -41,6 +41,7 @@ DEFAULT_PARSER = InputOutputParser()
 # 返回一个个字典，包含input和output(generator)
 def parse_input(text: str, parser: TextParser = DEFAULT_PARSER)->Generator[Dict[str, str], None, None]:
     raw_instructions = re.split('@@@@', text)
+    raw_instructions = raw_instructions[1:-1] # remove the first and last since GPT often generates output that doesn't match the pattern at the beginning and end.
     
     for _, raw_instruction in enumerate(raw_instructions):
         d = parser(raw_instruction)
@@ -77,14 +78,9 @@ class JsonFormatter(TaskFormatter):
 DEFAULT_FORMATTER = InputOutputFormatter()
 
 
-def encode_prompt(prompt_instructions: List[Dict[str, str]], formatter: TaskFormatter = DEFAULT_FORMATTER)->str:
+def encode_prompt(prompt: str, slot: str, prompt_instructions: List[Dict[str, str]], formatter: TaskFormatter)->str:
     """Encode multiple prompt instructions into a single string."""
-    with open("./prompt.txt", "r") as f:
-        prompt = f.read()
-        
-    with open("./customizedGPT.txt", "r") as f:
-        customizedGPT = f.read()
-        prompt = prompt.format(slot=customizedGPT)
+    prompt = prompt.format(slot=slot)
 
     for idx, task_dict in enumerate(prompt_instructions):
         task_text = formatter(task_dict)
@@ -93,10 +89,10 @@ def encode_prompt(prompt_instructions: List[Dict[str, str]], formatter: TaskForm
     return prompt
 
 
-def generate_prompts_(tasks: List[Dict[str, str]], num_prompts: int, num_tasks: int):
+def generate_prompts_(prompt: str, slot: str, tasks: List[Dict[str, str]], num_prompts: int, num_tasks: int,formatter: TaskFormatter = DEFAULT_FORMATTER):
     for _ in range(num_prompts):
         sample_tasks = random.sample(tasks, num_tasks)
-        yield encode_prompt(sample_tasks)
+        yield encode_prompt(prompt, slot, sample_tasks, formatter=formatter)
 
 def generate_prompts(file: str, num_prompts: int, num_tasks: int):
     tasks = []
@@ -109,33 +105,29 @@ def generate_prompts(file: str, num_prompts: int, num_tasks: int):
      
      
 class GenerateResponse(ABC):
-    
-    def __init__(self, obj: Dict):
-        self.obj = obj
-        
     @abstractmethod
-    def __call__(self, prefix:str, queries: List[str], **kwargs):
+    def __call__(self, prefix:str, queries: List[str], **kwargs)->List[Dict[str, str]]:
         pass
     
 
-from openai import OpenAi
+from openai import OpenAI
 
 class OpenAiGenerateResponse(GenerateResponse):
-    client: OpenAi
+    client: OpenAI
     model: str
     system_prompt: str
     
-    def __init(self, obj: Dict):
-        super().__init__(obj)
-        self.client = self.obj['client']
-        self.model = self.obj['model']
-        self.system_prompt = self.obj['system_prompt']
+    def __init__(self, client: OpenAI, model: str, system_prompt: str):
+        super().__init__()
+        self.client = client
+        self.model = model
+        self.system_prompt = system_prompt
         
-    def __call__(self, prefix:str, queries: List[str], **kwargs):
+    def __call__(self, prefix:str, queries: List[str], **kwargs)->List[Dict[str, str]]:
         responses = []
         for query in queries:
             prompt = f"{prefix} {query}"
-            completion = self.client.chat.client.chat.completions.create(
+            completion = self.client.chat.completions.create(
                 model = self.model,
                 messages = [
                     {"role": "system", "content": self.system_prompt},
@@ -180,10 +172,10 @@ class HuggingfaceGenerateResponse(GenerateResponse):
     
     SYSTEM_PROMPT = """You are a helpful assistant. 你是一个乐于助人的助手。"""
     
-    def __init__(self, obj: Dict):
-        super().__init__(obj)
-        self.tokenizer = self.obj['tokenizer']
-        self.model = self.obj['model']
+    def __init__(self, tokenizer: PreTrainedTokenizer, model: LlamaForCausalLM):
+        super().__init__()
+        self.tokenizer = tokenizer
+        self.model = model
     
     def __call__(self, prefix:str, queries: List[str], **kwargs):
         sentences = [
