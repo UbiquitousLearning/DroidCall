@@ -356,7 +356,53 @@ def gen_prompts(arg):
     for prompt in generate_prompts(arg.input, arg.num_prompts, arg.num_tasks):
         print(prompt)
         print("=======================================")
+        
+
+def get_json_obj(text: str):
+    # 更新后的正则表达式模式，用于匹配JSON对象或数组
+    json_pattern = r'\{(?:[^{}]|(?:\{[^{}]*\}))*\}|\[(?:[^\[\]]|(?:\[[^\[\]]*\]))*\]'
     
+    # 使用finditer来查找所有匹配的JSON字符串
+    matches = re.finditer(json_pattern, text)
+    
+    for match in matches:
+        json_string = match.group()
+        try:
+            # 解析JSON字符串为Python对象
+            python_obj = json.loads(json_string)
+            
+            return python_obj
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding error: {e}")
+            return None
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return None
+        
+def extract_and_parse_jsons(input_string):
+    # 更新后的正则表达式模式，用于匹配JSON对象或数组
+    json_pattern = r'\{(?:[^{}]|(?:\{[^{}]*\}))*\}|\[(?:[^\[\]]|(?:\[[^\[\]]*\]))*\]'
+    
+    # 使用finditer来查找所有匹配的JSON字符串
+    matches = re.finditer(json_pattern, input_string)
+    
+    for match in matches:
+        json_string = match.group()
+        try:
+            # 解析JSON字符串为Python对象
+            python_obj = json.loads(json_string)
+            if isinstance(python_obj, list):
+                for item in python_obj:
+                    yield item
+            else:
+                yield python_obj
+        except json.JSONDecodeError as e:
+            print(f"JSON decoding error: {e}")
+            continue
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            continue
+
 
 if __name__ == '__main__':
     os.environ["TOKENIZERS_PARALLELISM"] = "true"
