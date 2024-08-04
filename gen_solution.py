@@ -6,6 +6,12 @@ from string import Template
 from tqdm import tqdm
 import os
 from utils import get_json_obj
+import argparse
+
+parser = argparse.ArgumentParser(description='Generate solution for the task')
+parser.add_argument('--input', type=str, default='./data/filtered_data.jsonl', help='Path to the input file')
+parser.add_argument('--retrieve_doc_num', type=int, default=3, help='Number of documents to retrieve')
+arg = parser.parse_args()
 
 client = chromadb.PersistentClient(path="./chromaDB")
 
@@ -107,7 +113,7 @@ if __name__ == '__main__':
     handler = HANDLER_MAP[HANDLER](MODEL_NAME)
     
     queries = []
-    with open("queries.jsonl", "r") as f:
+    with open(arg.input, "r") as f:
         for line in f:
             j = json.loads(line)
             user_query = j["query"]
@@ -120,7 +126,7 @@ if __name__ == '__main__':
     for query in tqdm(queries):
         results = collection.query(
             query_texts=[query],
-            n_results=1,
+            n_results=arg.retrieve_doc_num,
         )
         docs = results['documents'][0]
         documents = [
