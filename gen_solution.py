@@ -6,17 +6,8 @@ from string import Template
 from tqdm import tqdm
 import os
 from utils import get_json_obj
+from transformers import AutoTokenizer, AutoModelForCausalLM
 import argparse
-
-parser = argparse.ArgumentParser(description='Generate solution for the task')
-parser.add_argument('--input', type=str, default='./data/filtered_data.jsonl', help='Path to the input file')
-parser.add_argument('--retrieve_doc_num', type=int, default=3, help='Number of documents to retrieve')
-arg = parser.parse_args()
-
-client = chromadb.PersistentClient(path="./chromaDB")
-
-collection = client.get_or_create_collection('intents')
-
 
 
 PROMPT_FOR_CHATMODEL = Template("""
@@ -56,17 +47,22 @@ User query: I need to set an alarm for 10:30 PM every Sunday to remember to prep
 If some field is not applicable, you can leave it empty. Remember to only provide the intent and the solution in the specific format. Do not provide any additional information.
                                 
 Now I will give you a user query and a list of intents. You should provide the intent and the solution to the user query.
+REMEMBER YOU MUST GIVE JUST AN JSON STRICTLY FOLLOWING THE FORMAT I GAVE YOU ABOVE AS OUTPUT. NOTHING ELSE.
 
 User query: $user_query
 Here are the intents you can use to solve the user query:
 $intents_info
 """)
 
+client = chromadb.PersistentClient(path="./chromaDB")
+
+collection = client.get_or_create_collection('intents')
+
 
 class Handler:
     model_name: str
 
-    def __init__(self, model_name, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+    def __init__(self, model_name, path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
         self.model_name = model_name
         self.temperature = temperature
         self.top_p = top_p
@@ -78,13 +74,13 @@ class Handler:
     
 
 class OpenAIHandler(Handler):
-    def __init__(self, model_name, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+    def __init__(self, model_name, path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
         super().__init__(model_name, temperature, top_p, max_tokens)
         self.client = OpenAI()
 
     def inference(self, user_query: str, documents: List[str]) -> str:
         # This method is used to retrive model response for each model.
-        message =[
+        message = [
             {
                 "role": "user",
                 "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, intents_info="\n".join(documents))
@@ -101,16 +97,59 @@ class OpenAIHandler(Handler):
         return response.choices[0].message.content
 
 
+class HFCausalLMHandler(Handler):
+    DELIMITERS_MAP = {
+        "TinyLlama": "<|assistant|>",
+        "Qwen": "<|im_start|>assistant",
+    }
+    
+    def __init__(self, model_name, path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+        super().__init__(model_name, temperature, top_p, max_tokens)
+        
+        self.tok = AutoTokenizer.from_pretrained(path)
+        self.model = AutoModelForCausalLM.from_pretrained(path, device_map="auto")
+        
+    def inference(self, user_query: str, documents: List[str]) -> str:
+        # This method is used to retrive model response for each model.
+        message = [
+            {
+                "role": "user",
+                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, intents_info="\n".join(documents))
+            },
+        ]
+        
+        tokenized_chat = self.tok.apply_chat_template(message, tokenize=True, add_generation_prompt=True, return_tensors="pt")
+        outputs = self.model.generate(tokenized_chat.to(self.model.device), 
+                                       max_new_tokens=self.max_tokens, 
+                                       top_p=self.top_p, temperature=self.temperature,
+                                       do_sample=True)
+        text = self.tok.decode(outputs[0])
+        response = text.split(self.DELIMITERS_MAP[self.model_name])[1]
+        return response
+    
+        
+
+
 HANDLER_MAP = {
-    "openai": OpenAIHandler
+    "openai": OpenAIHandler,
+    "hf_causal_lm": HFCausalLMHandler
 }
 
-HANDLER = "openai"
-MODEL_NAME = "gpt-4o-mini"
+parser = argparse.ArgumentParser(description='Generate solution for the task')
+parser.add_argument('--input', type=str, default='./data/filtered_data.jsonl', help='Path to the input file')
+parser.add_argument('--retrieve_doc_num', type=int, default=2, help='Number of documents to retrieve')
+parser.add_argument('--model_name', type=str, default='gpt-4o-mini', help='model name')
+parser.add_argument('--handler', type=str, default='openai', help='Handler to use for inference')
+parser.add_argument('--path', type=str, default="/data/share/Qwen2-1.5B-Instruct", help='local dir if model is in local')
+arg = parser.parse_args()
 
 
-if __name__ == '__main__':
-    handler = HANDLER_MAP[HANDLER](MODEL_NAME)
+HANDLER = arg.handler # "openai"
+MODEL_NAME = arg.model_name # "gpt-4o-mini"
+
+
+def main():
+    handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path)
     
     queries = []
     with open(arg.input, "r") as f:
@@ -139,7 +178,30 @@ if __name__ == '__main__':
         # print(f"Intents: {documents}")
         # print(f"Response: {response}")
         res = get_json_obj(response)
+        print(response)
         output_file.write(json.dumps({"query": query, "response": res}, ensure_ascii=False) + "\n")
         output_file.flush()
         
     output_file.close()
+
+
+if __name__ == '__main__':
+    main()
+    # path = "/data/share/Qwen2-1.5B-Instruct"
+    
+    # tokenizer = AutoTokenizer.from_pretrained(path)
+    # model = AutoModelForCausalLM.from_pretrained(path, device_map="auto")
+    
+    # message = [
+    #     {
+    #         "role": "user",
+    #         "content": "How can I keep fit"
+    #     }
+    # ]
+    
+    # tokenized_chat = tokenizer.apply_chat_template(message, tokenize=True, add_generation_prompt=True, return_tensors="pt").to(model.device)
+    # outputs = model.generate(tokenized_chat, max_new_tokens=1000, top_p=1, temperature=0.7, do_sample=True)
+    # print(tokenizer.decode(outputs[0]))
+
+    
+    

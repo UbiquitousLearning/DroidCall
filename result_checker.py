@@ -70,6 +70,8 @@ def deep_compare(obj1, obj2, ftype="strict"):
 
 def check_with_type(candidate, ref, l, field_type):
     for key in l:
+        if key not in candidate:
+            return False
         if not deep_compare(candidate[key], ref[key], field_type[key]["type"]):
             return False
     
@@ -77,6 +79,9 @@ def check_with_type(candidate, ref, l, field_type):
 
 
 def check(candidate, ref):
+    if "intent" not in candidate:
+        return False
+    
     if candidate["intent"] != ref["intent"]:
         return False
     
@@ -141,7 +146,7 @@ def main():
     else:
         acc = {}
     
-    acc["model_name"] = correct_num / len(gpt_result)
+    acc[arg.model_name] = correct_num / len(gpt_result)
     
     with open(arg.output, "w") as fout:
         json.dump(acc, fout, indent=4)
