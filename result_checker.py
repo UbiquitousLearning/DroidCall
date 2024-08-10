@@ -8,6 +8,7 @@ parser.add_argument("--input", type=str, default="./results/openai_gpt-4o-mini_r
 parser.add_argument("--answer", type=str, default="./data/annotation_data.jsonl", help="Path to the answer file")
 parser.add_argument("--output", type=str, default="./results/accuracy.json", help="Path to the output accuracy file")
 parser.add_argument("--model_name", type=str, default="openai_gpt-4o-mini", help="Model name")
+parser.add_argument("--task_name", type=str, default="", help="Task name")
 arg = parser.parse_args()
 
 def semantic_compare(a: str, b: str, threshold: float = 0.85):
@@ -146,7 +147,7 @@ def main():
     else:
         acc = {}
     
-    acc[arg.model_name] = correct_num / len(gpt_result)
+    acc[f"{arg.model_name}_{arg.task_name}"] = correct_num / len(gpt_result)
     
     with open(arg.output, "w") as fout:
         json.dump(acc, fout, indent=4)

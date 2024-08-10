@@ -8,6 +8,7 @@ import os
 from utils import get_json_obj
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import argparse
+import random
 
 
 PROMPT_FOR_CHATMODEL = Template("""
@@ -53,11 +54,6 @@ User query: $user_query
 Here are the intents you can use to solve the user query:
 $intents_info
 """)
-
-client = chromadb.PersistentClient(path="./chromaDB")
-
-collection = client.get_or_create_collection('intents')
-
 
 class Handler:
     model_name: str
@@ -141,11 +137,111 @@ parser.add_argument('--retrieve_doc_num', type=int, default=2, help='Number of d
 parser.add_argument('--model_name', type=str, default='gpt-4o-mini', help='model name')
 parser.add_argument('--handler', type=str, default='openai', help='Handler to use for inference')
 parser.add_argument('--path', type=str, default="/data/share/Qwen2-1.5B-Instruct", help='local dir if model is in local')
+parser.add_argument('--task_name', type=str, default='', help='task name')
+parser.add_argument('--retriever', type=str, default='chromadb', help='retriever to use', choices=["chromadb", "fake"])
 arg = parser.parse_args()
 
 
 HANDLER = arg.handler # "openai"
 MODEL_NAME = arg.model_name # "gpt-4o-mini"
+
+class Retriever:
+    def retrieve(self, query: str, n_results: int) -> List[str]:
+        pass
+    
+
+class ChromaDBRetriever(Retriever):
+    def __init__(self, data_path: str) -> None:
+        super().__init__()
+        self.client = chromadb.PersistentClient(path="./chromaDB")
+        self.collection = self.client.get_or_create_collection('intents')
+    
+    def retrieve(self, query: str, n_results: int) -> List[str]:
+        results = self.collection.query(
+            query_texts=[query],
+            n_results=n_results,
+        )
+        docs = results['documents'][0]
+        documents = [
+            json.dumps(json.loads(doc), indent=2, ensure_ascii=False)
+            for doc in docs
+        ]
+        return documents
+
+
+class FakeRetriever(Retriever):
+    def __init__(self, data_path: str) -> None:
+        super().__init__()
+        self.query_to_intents = {}
+        with open(data_path, "r") as f:
+            for line in f:
+                item = json.loads(line)
+                self.query_to_intents[item["query"]] = item["intent"]
+                
+        self.intents_info = {}
+        with open("data/intents.jsonl", "r") as f:
+            for line in f:
+                item = json.loads(line)
+                self.intents_info[item["action"]] = item
+    
+    def retrieve(self, query: str, n_results: int) -> List[str]:
+        # retrieve 1 actual intent and n_results - 1 fake intents
+        actual_intent = self.query_to_intents[query]
+        fake_intents = list(self.intents_info.keys())
+        fake_intents.remove(actual_intent)
+        fake_intents = random.sample(fake_intents, n_results - 1)
+        
+        all_intents = [actual_intent] + fake_intents
+        documents = [
+            json.dumps(self.intents_info[intent], indent=2, ensure_ascii=False)
+            for intent in all_intents
+        ]
+        
+        return documents
+    
+
+RETRIEVER_MAP = {
+    "chromadb": ChromaDBRetriever,
+    "fake": FakeRetriever
+}
+
+def test_retriever_accuracy():
+    print("Testing retriever accuracy")
+    retriever = RETRIEVER_MAP[arg.retriever](arg.input)
+    all_items = []
+    with open(arg.input, "r") as f:
+        for line in f:
+            item = json.loads(line)
+            all_items.append(item)
+    
+    data = {
+        "n_docs": [],
+        "accuracy": []
+    }
+    
+    max_n_docs = 10
+    for n_doc in range(1, max_n_docs + 1):
+        correct = 0
+        for item in all_items:
+            query = item["query"]
+            actual_intent = item["intent"]
+            
+            documents = retriever.retrieve(query, n_doc)
+            for doc in documents:
+                doc_obj = json.loads(doc)
+                if doc_obj["action"] == actual_intent:
+                    correct += 1
+                    break
+        
+        accuracy = correct / len(all_items)
+        print(f"Accuracy for {n_doc} documents: {accuracy}")
+        data["n_docs"].append(n_doc)
+        data["accuracy"].append(accuracy)
+        
+    import pandas as pd
+    df = pd.DataFrame(data)
+    print(df)
+            
 
 
 def main():
@@ -161,24 +257,19 @@ def main():
     # create output directory if not exists
     if not os.path.exists("./results"):
         os.makedirs("./results")
-    output_file = open(f"./results/{HANDLER}_{MODEL_NAME}_result.jsonl", "w")
+    output_file = open(f"./results/{HANDLER}_{MODEL_NAME}_{arg.task_name}_result.jsonl", "w")
+    
+    retriever = RETRIEVER_MAP[arg.retriever](arg.input)
+    
     for query in tqdm(queries):
-        results = collection.query(
-            query_texts=[query],
-            n_results=arg.retrieve_doc_num,
-        )
-        docs = results['documents'][0]
-        documents = [
-            json.dumps(json.loads(doc), indent=2, ensure_ascii=False)
-            for doc in docs
-        ]
+        documents = retriever.retrieve(query, arg.retrieve_doc_num)
         
         response = handler.inference(query, documents)
         # print(f"User Query: {query}")
         # print(f"Intents: {documents}")
         # print(f"Response: {response}")
         res = get_json_obj(response)
-        print(response)
+        # print(response)
         output_file.write(json.dumps({"query": query, "response": res}, ensure_ascii=False) + "\n")
         output_file.flush()
         
@@ -186,7 +277,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    test_retriever_accuracy()
+    # main()
     # path = "/data/share/Qwen2-1.5B-Instruct"
     
     # tokenizer = AutoTokenizer.from_pretrained(path)

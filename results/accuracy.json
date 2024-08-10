@@ -1,4 +1,5 @@
 {
     "gpt-4o-mini": 0.5625,
-    "Qwen2-1.5B-chat": 0.08333333333333333
+    "Qwen2-1.5B-chat": 0.08333333333333333,
+    "Qwen2_fake_retriever": 0.0625
 }

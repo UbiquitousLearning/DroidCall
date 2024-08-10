@@ -1,1 +1,6 @@
 **/__pycache__/*
+log/**/*
+model
+checkpoint/
+wandb/
+chromaDB/
