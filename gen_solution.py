@@ -9,6 +9,7 @@ from utils import get_json_obj
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import argparse
 import random
+from peft import PeftModelForCausalLM
 
 
 PROMPT_FOR_CHATMODEL = Template("""
@@ -58,11 +59,13 @@ $intents_info
 class Handler:
     model_name: str
 
-    def __init__(self, model_name, path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
         self.model_name = model_name
         self.temperature = temperature
         self.top_p = top_p
         self.max_tokens = max_tokens
+        self.path = path
+        self.adapter_path = adapter_path
 
     def inference(self, user_query: str, documents: List[str]) -> str:
         # This method is used to retrive model response for each model.
@@ -70,8 +73,8 @@ class Handler:
     
 
 class OpenAIHandler(Handler):
-    def __init__(self, model_name, path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
-        super().__init__(model_name, temperature, top_p, max_tokens)
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
         self.client = OpenAI()
 
     def inference(self, user_query: str, documents: List[str]) -> str:
@@ -99,8 +102,8 @@ class HFCausalLMHandler(Handler):
         "Qwen": "<|im_start|>assistant",
     }
     
-    def __init__(self, model_name, path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
-        super().__init__(model_name, temperature, top_p, max_tokens)
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
         
         self.tok = AutoTokenizer.from_pretrained(path)
         self.model = AutoModelForCausalLM.from_pretrained(path, device_map="auto")
@@ -123,12 +126,18 @@ class HFCausalLMHandler(Handler):
         response = text.split(self.DELIMITERS_MAP[self.model_name])[1]
         return response
     
-        
+
+class LoraCausalLMHandler(HFCausalLMHandler):
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
+        self.base_model = self.model
+        self.model = PeftModelForCausalLM.from_pretrained(self.base_model, adapter_path)
 
 
 HANDLER_MAP = {
     "openai": OpenAIHandler,
-    "hf_causal_lm": HFCausalLMHandler
+    "hf_causal_lm": HFCausalLMHandler,
+    "lora_causal_lm": LoraCausalLMHandler
 }
 
 parser = argparse.ArgumentParser(description='Generate solution for the task')
@@ -137,6 +146,7 @@ parser.add_argument('--retrieve_doc_num', type=int, default=2, help='Number of d
 parser.add_argument('--model_name', type=str, default='gpt-4o-mini', help='model name')
 parser.add_argument('--handler', type=str, default='openai', help='Handler to use for inference')
 parser.add_argument('--path', type=str, default="/data/share/Qwen2-1.5B-Instruct", help='local dir if model is in local')
+parser.add_argument('--adapter_path', type=str, default="./checkpoint/Qwen2-1.5B-Instruct", help='adapter path')
 parser.add_argument('--task_name', type=str, default='', help='task name')
 parser.add_argument('--retriever', type=str, default='chromadb', help='retriever to use', choices=["chromadb", "fake"])
 arg = parser.parse_args()
@@ -245,7 +255,7 @@ def test_retriever_accuracy():
 
 
 def main():
-    handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path)
+    handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path, arg.adapter_path)
     
     queries = []
     with open(arg.input, "r") as f:
@@ -264,12 +274,15 @@ def main():
     for query in tqdm(queries):
         documents = retriever.retrieve(query, arg.retrieve_doc_num)
         
-        response = handler.inference(query, documents)
-        # print(f"User Query: {query}")
-        # print(f"Intents: {documents}")
-        # print(f"Response: {response}")
-        res = get_json_obj(response)
-        # print(response)
+        retry_num = 4
+        
+        while retry_num > 0:
+            response = handler.inference(query, documents)
+            res = get_json_obj(response)
+            if res:
+                break
+            retry_num -= 1
+            
         output_file.write(json.dumps({"query": query, "response": res}, ensure_ascii=False) + "\n")
         output_file.flush()
         
@@ -277,8 +290,8 @@ def main():
 
 
 if __name__ == '__main__':
-    test_retriever_accuracy()
-    # main()
+    # test_retriever_accuracy()
+    main()
     # path = "/data/share/Qwen2-1.5B-Instruct"
     
     # tokenizer = AutoTokenizer.from_pretrained(path)

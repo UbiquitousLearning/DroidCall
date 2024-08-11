@@ -6,11 +6,11 @@ import torch
 import wandb
 
 DATA_PATH = "data/finetune_dataset.jsonl"
-MODEL_PATH = "model/HuggingFaceTB/SmolLM"
+MODEL_PATH =  "/data/share/Qwen2-1.5B-Instruct" # "model/HuggingFaceTB/SmolLM"
 OUTPUT_DIR = "checkpoint"
 
 LEARNING_RATE = 1.41e-5
-EPOCHS = 1
+EPOCHS = 3
 
 LORA_R = 4
 LORA_ALPHA = 32
@@ -65,7 +65,7 @@ if __name__ == "__main__":
     peft_model = get_peft_model(model, peft_config)
     
     sft_config = SFTConfig(
-        output_dir=OUTPUT_DIR,
+        output_dir=f"{OUTPUT_DIR}/Qwen2-1.5B-Instruct",
         report_to="all",
         logging_dir="log",
         packing=False,
@@ -94,4 +94,4 @@ if __name__ == "__main__":
     
     
     trainer.train()
-    trainer.save_model(OUTPUT_DIR)
+    trainer.save_model(f"{OUTPUT_DIR}/Qwen2-1.5B-Instruct")

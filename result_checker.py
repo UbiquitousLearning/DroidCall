@@ -91,6 +91,9 @@ def check(candidate, ref):
         return False
     
     # check extras
+    if "extras" not in candidate:
+        return False
+    
     if not check_with_type(candidate["extras"], ref["extras"], ref["extras"].keys(), ref["field_type"]["extras"]):
         return False
     
