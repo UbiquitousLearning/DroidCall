@@ -5,5 +5,6 @@
     "gpt-4o_fake-retriever": 0.8333333333333334,
     "Qwen2-1.5B-Instruct_Qwen2-1.5B-Instruct-fake-retriever": 0.3125,
     "Qwen2-1.5B-Instruct_Qwen2-1.5B-Instruct-chromadb-retriever": 0.1875,
-    "Qwen2-1.5B-Instruct_Qwen2-1.5B-Instruct-lora-fake-retriever": 0.4375
+    "Qwen2-1.5B-Instruct_Qwen2-1.5B-Instruct-lora-fake-retriever": 0.4375,
+    "qwen2-1.5B_test": 0.3125
 }

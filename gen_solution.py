@@ -97,11 +97,6 @@ class OpenAIHandler(Handler):
 
 
 class HFCausalLMHandler(Handler):
-    DELIMITERS_MAP = {
-        "TinyLlama": "<|assistant|>",
-        "Qwen": "<|im_start|>assistant",
-    }
-    
     def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
         super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
         
@@ -123,7 +118,8 @@ class HFCausalLMHandler(Handler):
                                        top_p=self.top_p, temperature=self.temperature,
                                        do_sample=True)
         text = self.tok.decode(outputs[0])
-        response = text.split(self.DELIMITERS_MAP[self.model_name])[1]
+        prefix = self.tok.apply_chat_template(message, tokenize=False, add_generation_prompt=False)
+        response = text[len(prefix):]
         return response
     
 
@@ -144,11 +140,12 @@ parser = argparse.ArgumentParser(description='Generate solution for the task')
 parser.add_argument('--input', type=str, default='./data/filtered_data.jsonl', help='Path to the input file')
 parser.add_argument('--retrieve_doc_num', type=int, default=2, help='Number of documents to retrieve')
 parser.add_argument('--model_name', type=str, default='gpt-4o-mini', help='model name')
-parser.add_argument('--handler', type=str, default='openai', help='Handler to use for inference')
+parser.add_argument('--handler', type=str, default='openai', help='Handler to use for inference',
+                    choices=["openai", "hf_causal_lm", "lora_causal_lm"])
 parser.add_argument('--path', type=str, default="/data/share/Qwen2-1.5B-Instruct", help='local dir if model is in local')
 parser.add_argument('--adapter_path', type=str, default="./checkpoint/Qwen2-1.5B-Instruct", help='adapter path')
 parser.add_argument('--task_name', type=str, default='', help='task name')
-parser.add_argument('--retriever', type=str, default='chromadb', help='retriever to use', choices=["chromadb", "fake"])
+parser.add_argument('--retriever', type=str, default='fake', help='retriever to use', choices=["chromadb", "fake"])
 arg = parser.parse_args()
 
 
