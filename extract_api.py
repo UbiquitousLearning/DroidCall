@@ -111,9 +111,9 @@ def convert_xlam_func_to_desc(func_obj):
             tmp = tmp + [""]
         
         if len(tmp) > 2:
-            print(f"warning: {key} has more than 2 values in type")
-            print(tmp)
-            print(json.dumps(func_obj, indent=2))
+            # print(f"warning: {key} has more than 2 values in type")
+            # print(tmp)
+            # print(json.dumps(func_obj, indent=2))
             tmp = tmp[:2]
             
         type_name, is_optional = tmp
@@ -134,17 +134,23 @@ def xlam_extract(input: str)->Generator[dict[str, Any], None, None]:
         data = json.load(f)
     
     for item in data:
+        query = item["query"]
+        answers = json.loads(item["answers"])
         tools = json.loads(item["tools"])
-        for tool in tools:
-            yield convert_xlam_func_to_desc(tool)
+        
+        yield {
+            "query": query,
+            "answers": answers,
+            "tools": [
+                    convert_xlam_func_to_desc(tool) for tool in tools
+                ],
+            "tools_num": len(tools),
+            "answers_num": len(answers),
+        }
     
 
 def glaive_extract(input: str)->Generator[dict[str, Any], None, None]:
-    with open(input, "r") as f:
-        data = json.load(f)
-    
-    for item in data:
-        yield convert_xlam_func_to_desc(item)
+    pass
 
 
 HANDLER_MAP =  {
