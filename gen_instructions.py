@@ -1,51 +1,12 @@
 from string import Template
 import json
-from utils import SimilarityRecord, OpenAiGenerateResponse, extract_and_parse_jsons
+from utils import SimilarityRecord, OpenAiGenerateResponse, HuggingFaceTokenizer, extract_and_parse_jsons
 from transformers import AutoTokenizer
 import random
 from openai import OpenAI
+import os
+from tqdm import tqdm
 
-INIT_PROMPT = Template("""
-我需要你帮我生成一些function calling的数据集，我会给你一个tool的描述，你需要根据这个tool生成一些query以及对应的answer，即调用tool的答案来
-解决用户的query。下面是我的一些要求：
-1. 对于query，尽可能的使用不同的词汇、句法来保证query的多样性。query可以长、可以短、可以复杂也可以简洁，总之尽量不要生成类似的query，我希望能保证query的多样性。
-2. query的语言尽可能的保持多样性，也就是说这个query可以是一个命令、可以是一个问题、也可以带有详细描述的请求等等。
-3. 生成的query要尽可能的覆盖tool的所有可能的用法，即各个参数覆盖性要全面，保证能使用tool来完成各种形式的工作。
-4. 生成的query要可以使用给出的tools来解决。
-5. 对于你生成的query，你要给出使用tool解决的answer，即给出使用的tool和对应的各个参数的值。
-6. 给出参数时，若一个参数required=False，则可以不给出相应的值。
-7. query answer对要尽可能的覆盖tool的可能的所有用法。
-8. 生成的数据一定要按照我样例中的格式给出。
-
-下面是一些样例:
-tool:
-{
-    "name": "live_giveaways_by_type",
-    "description": "Retrieve live giveaways from the GamerPower API based on the specified type.",
-    "arguments": {
-        "type": {
-            "description": "The type of giveaways to retrieve (e.g., game, loot, beta).",
-            "required": true,
-            "type": "str",
-            "default": "game"
-        }
-    }
-}
-response: 
-{
-  "query": "Where can I find live giveaways for beta access and games?",
-  "answers": [
-    {
-      "name": "live_giveaways_by_type",
-      "arguments": {
-        "type": "beta"
-      }
-    }]
-}
-
-接下来我将给你一个tool，你帮我生成10条query answer对
-tool: $tool
-""")
 
 INIT_PROMPT = Template("""
 I need your help to generate some function calling datasets. I will provide you with a tool description, and you need to generate queries and corresponding answers based on this tool, i.e., the answers that call the tool to resolve the user's query. Here are my requirements:
@@ -62,10 +23,32 @@ I need your help to generate some function calling datasets. I will provide you 
 following are some examples:
 $examples
 
-Now I will give you a tool, and you help me generate 10 query-answer pairs.
+Now I will give you a tool, and you help me generate 20 query-answer pairs.
 REMEMBER TO GENERATE THE RESULT IN JSON FORMAT LIKE THE EXAMPLE ABOVE
 tool: $tool
 """)
+
+GEN_PROMPT = Template("""
+I need your help to generate some function calling datasets. I will provide you with a tool description and some example data for you. 
+You need to generate queries and corresponding answers based on this tool, i.e., the answers that call the tool to resolve the user's query. Here are my requirements:
+
+1. For queries, try to use different vocabulary and syntax to ensure query diversity. Queries can be long or short, complex or concise. In short, try not to generate similar queries; I want to ensure query diversity.
+2. The language of the queries should be as diverse as possible. This means a query can be a command, a question, or a request with detailed descriptions, etc.
+3. The generated queries should cover all possible uses of the tool as much as possible, meaning the coverage of various parameters should be comprehensive, ensuring the tool can be used to complete various forms of work.
+4. The generated queries should be solvable using the given tools.
+5. For the queries you generate, you should provide answers using the tool, i.e., give the tool used and the values for each parameter.
+6. When providing parameters, if a parameter has required=False, it is not necessary to provide its value.
+7. The query-answer pairs should cover as many possible uses of the tool as possible.
+8. The generated data must be presented in the format given in my example.
+
+following are tool I provided and some examples of query-answer pairs:
+tool: $tool
+examples: $examples
+
+Now please help me generate 20 query-answer pairs.
+REMEMBER TO GENERATE THE RESULT IN JSON FORMAT LIKE THE EXAMPLE ABOVE
+""")
+
 
 def format_example(example):
     tool = example["tools"][0]
@@ -73,8 +56,29 @@ def format_example(example):
         "query": example["query"],
         "answers": example["answers"]
     }
-    return f'tool: {json.dumps(tool, indent=2)}\nresponse: {json.dumps(resp, indent=2)}'
+    return f'tool: {json.dumps(tool, indent=2, ensure_ascii=False)}\nresponse: {json.dumps(resp, indent=2)}'
 
+
+def check_format(data):
+    if "query" not in data or "answers" not in data:
+        return False
+    if not isinstance(data["query"], str):
+        return False
+    if not isinstance(data["answers"], list):
+        return False
+    for ans in data["answers"]:
+        if not isinstance(ans, dict):
+            return False
+        if "name" not in ans or "arguments" not in ans:
+            return False
+        if not isinstance(ans["arguments"], dict):
+            return False
+    return True
+
+OUTPUT_FILE = "data/instructions.jsonl"
+NUM_GENERATED = 40
+SIMILARITY_THRESHOLD = 0.75
+SAMPLE_NUM = 4
 
 if __name__ == "__main__":
     all_examples = []
@@ -86,6 +90,7 @@ if __name__ == "__main__":
         
     path = "../xLLM/tokenizer_qwen2"
     tokenizer = AutoTokenizer.from_pretrained(path)
+    tokenizer = HuggingFaceTokenizer(tokenizer)
 
     records = SimilarityRecord(tokenizer)
     client = OpenAI()
@@ -93,20 +98,66 @@ if __name__ == "__main__":
 
     with open("data/api.jsonl") as f:
         all_tools = [json.loads(line) for line in f.readlines()]
-
-    examples = random.sample(all_examples, 2)
-    examples_text = "\n".join([format_example(example) for example in examples])
-    tool = random.choice(all_tools)
-    tool_text = json.dumps(tool, indent=4)
-    prompt_text = INIT_PROMPT.substitute(examples=examples_text, tool=tool_text)
-    print(prompt_text)
-    print("\n\n")
     
-    resps = generate_response('', [prompt_text])
+    if os.path.exists(".tmp.json"):
+        with open(".tmp.json", "r") as f:
+            j = json.load(f)
+            processed_num = j["processed_num"]
+            all_tools = all_tools[processed_num:]
     
-    for resp in resps:
-        if resp["finish_reason"] == "stop":
-            print(f'text: {resp["text"]}\n\n')
-            for j in extract_and_parse_jsons(resp["text"]):
-                print(json.dumps(j, indent=2, ensure_ascii=False))
+    for tool_idx, tool in enumerate(all_tools):
+        process_bar = tqdm(total=NUM_GENERATED, desc=f"processing tool {tool_idx}")
+        data = []
+        tool_text = json.dumps(tool, indent=4, ensure_ascii=False)
+        print(f"started to process tool {tool_idx}: {tool_text}")
+        examples = random.sample(all_examples, 2)
+        examples_text = "\n".join([format_example(example) for example in examples])
+        prompt_text = INIT_PROMPT.substitute(examples=examples_text, tool=tool_text)
+        # print(prompt_text)
+        # print("\n\n")
+        
+        output_file = open(OUTPUT_FILE, "a")
+        resps = generate_response('', [prompt_text])
+        
+        for resp in resps:
+            if resp["finish_reason"] == "stop":
+                # print(f'text: {resp["text"]}\n\n')
+                for j in extract_and_parse_jsons(resp["text"]):
+                    # print(json.dumps(j, indent=2, ensure_ascii=False))
+                    if not check_format(j):
+                        continue
+                    most_similar, score = records.update(j["query"], SIMILARITY_THRESHOLD)
+                    if score > SIMILARITY_THRESHOLD:
+                        print(f"most similar: {most_similar}, score: {score}")
+                    else:
+                        process_bar.update(1)
+                        data.append(j)
+                    
+        
+        while len(data) < NUM_GENERATED:
+            sampled_query_answer_pairs = random.sample(data, SAMPLE_NUM)
+            examples_text = "\n".join([json.dumps(pair, indent=2) for pair in sampled_query_answer_pairs])
+            prompt_text = GEN_PROMPT.substitute(examples=examples_text, tool=tool_text)
+            # print(f"prompt: {prompt_text}")
+            resps = generate_response('', [prompt_text])
+            for resp in resps:
+                if resp["finish_reason"] == "stop":
+                    for j in extract_and_parse_jsons(resp["text"]):
+                        if not check_format(j):
+                            continue
+                        most_similar, score = records.update(j["query"], SIMILARITY_THRESHOLD)
+                        if score > SIMILARITY_THRESHOLD:
+                            print(f"most similar: {most_similar}, score: {score}")
+                        else:
+                            process_bar.update(1)
+                            data.append(j)
+            
+            for d in data:
+                output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
+            output_file.flush()
+            with open(".tmp.json", "w") as f:
+                f.write(json.dumps({"processed_num": tool_idx}))
+            
+        
+        
     
