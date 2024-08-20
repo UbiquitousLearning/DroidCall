@@ -153,6 +153,7 @@ if __name__ == "__main__":
                             data.append(j)
             
             for d in data:
+                d["tools"] = [tool]
                 output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
             output_file.flush()
             with open(".tmp.json", "w") as f:
