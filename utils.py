@@ -403,6 +403,143 @@ def extract_and_parse_jsons(input_string):
             print(f"An error occurred: {e}")
             continue
 
+from string import Template
+
+class Sampler(ABC):
+    def __init__(self):
+        pass
+    
+    @abstractmethod
+    def sample()->dict:
+        raise NotImplementedError
+    
+class RandomListSampler(Sampler):
+    def __init__(self, data: List[Dict[str, str]],
+                 num_samples_per_query: int = 1):
+        self.data = data
+        self.num_samples_per_query = num_samples_per_query
+    
+    @abstractmethod
+    def format(self, samples: List[Dict[str, str]])->Dict[str, str]:
+        raise NotImplementedError
+    
+    def sample(self)->dict:
+        samples = random.sample(self.data, self.num_samples_per_query)
+        return self.format(samples)
+    
+    def add_data(self, data: List[Dict[str, str]]):
+        self.data.extend(data)
+        
+    def renew_data(self, data: List[Dict[str, str]]):
+        self.data = data
+        
+class JsonlSampler(Sampler):
+    def __init__(self, file: str, num_samples_per_query: int = 1):
+        self.file = file
+        self.num_samples_per_query = num_samples_per_query
+        self.f = open(file, 'r')
+        self.eof = False
+        
+    @abstractmethod
+    def format(self, samples: List[Dict[str, str]])->Dict[str, str]:
+        raise NotImplementedError
+    
+    def sample(self)->dict:
+        if self.eof:
+            return None
+        
+        # read num_samples_per_query lines
+        # if reach the end of file, close the file and return None
+        samples = []
+        for _ in range(self.num_samples_per_query):
+            line = self.f.readline()
+            if not line:
+                self.f.close()
+                self.eof = True
+                break
+            else:
+                samples.append(json.loads(line))
+
+        if not samples:
+            return None
+        return self.format(samples)
+    
+    
+class DataFilter(ABC):
+    def __init__(self, fail_callback: Callable[[Dict[str, str]], None] = None):
+        self.fail_callback = fail_callback
+    
+    @abstractmethod
+    def filter(self, data: Iterable[Dict[str, str]])->Iterable[Dict[str, str]]:
+        raise NotImplementedError
+    
+class JsonExtractor(DataFilter):
+    def filter(self, data: Iterable[Dict[str, str]])->Iterable[Dict[str, str]]:
+        for d in data:
+            if data["finish_reason"] == "stop":
+                for item in extract_and_parse_jsons(d["text"]):
+                    yield item
+            else:
+                if self.fail_callback:
+                    self.fail_callback(d)
+                    
+import logging
+
+class SimilarityFilter(DataFilter):
+    def __init__(self, similarity_record: SimilarityRecord, key = "query", bound: float = 0.7,
+                 fail_callback: Callable[[Dict[str, str]], None] = None):
+        super().__init__(fail_callback)
+        self.similarity_record = similarity_record
+        self.key = key
+        self.bound = bound
+        
+    def filter(self, data: Iterable[Dict[str, str]])->Iterable[Dict[str, str]]:
+        for d in data:
+            most_similar, score = self.similarity_record.update(d[self.key], self.bound)
+            if score <= self.bound:
+                yield d
+            else:
+                logging.warning(f"{d[self.key]} is too similar to {most_similar}, score: {score}")
+                
+                if self.fail_callback:
+                    self.fail_callback(d)
+
+from tqdm import tqdm
+
+class LLMDataCollector:
+    def __init__(self, prompt: Template,
+                 sampler: Sampler,
+                 data_filters: List[DataFilter],
+                 generate_response: GenerateResponse,
+                 num_queries: int = 1):
+        self.prompt = prompt
+        self.sampler = sampler
+        self.data_filters = data_filters
+        self.generate_response = generate_response
+        self.num_queries = num_queries
+    
+    def add_filter(self, data_filter: DataFilter):
+        self.data_filters.append(data_filter)
+        
+    def collect(self, num_data: int, desc: str = "collecting data")->Iterable[Dict[str, str]]:
+        process_bar = tqdm(total=num_data, desc=desc)
+        num_generated = 0
+        while num_generated < num_data:
+            samples = [self.sampler.sample() for _ in range(self.num_queries)]
+            prompts = [self.prompt.substitute(sample) for sample in samples]
+            
+            responses = self.generate_response('', prompts)
+            
+            for filter in self.data_filters:
+                responses = filter.filter(responses)
+                
+            for response in responses:
+                yield response
+                num_generated += 1
+                process_bar.update(1)
+            
+    
+
 
 if __name__ == '__main__':
     os.environ["TOKENIZERS_PARALLELISM"] = "true"
