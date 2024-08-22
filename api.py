@@ -173,7 +173,7 @@ def ACTION_EDIT_CONTACT(contact_uri: str, contact_info: Optional[Dict[str, Any]]
             or by querying the contacts database.
         contact_info (Optional[Dict[str, Any]]): A dictionary containing additional
             contact information to pre-fill in the edit form. Keys should correspond
-            to contact fields (e.g., 'email', 'phone', 'name'), and values should be
+            to contact fields (available key: 'email', 'phone', 'name', 'company', 'address'), and values should be
             the data to pre-fill. Default is None.
 
     Returns:
