@@ -11,49 +11,47 @@ import argparse
 import random
 from peft import PeftModelForCausalLM
 
+SYSTEM_PROMPT = """
+You are an expert in composing functions. You are given a question and a set of possible functions. 
+Based on the question, you will need to make one or more function/tool calls to achieve the purpose. 
+If none of the function can be used, point it out. If the given question lacks the parameters required by the function,
+also point it out. You should only return the function call in tools call sections.
+"""
 
 PROMPT_FOR_CHATMODEL = Template("""
-You are an Android development expert, skilled in understanding user needs and you are very familiar with Android intents.
-Now you will be given a user query and a list of relevant intents that may be related to the query. You need to 
-Based on the user query, you should select proper intent that can achieve the user's goal. If none of the intents can be used,
-point it out. You should only return the intent and the solution to the user query. You should not provide any additional information.
-                                
-If you can use one of the intent to solve the user query, please provide the intent and the solution in the following format:
-{
-    "intent": ... ,
-    "uri": ... ,
-    "mime": ... ,
-    "extras": {
+Here is a list of functions in JSON format that you can invoke:
+$functions
+
+Should you decide to return the function call(s), Put it in the format of 
+<function_call> {
+    "name": "func1",
+    "arguments": {
+        "arg1": "value1",
+        "arg2": "value2",
         ...
-    },
+    }
 }
-
-Below is an example:
-
-User query: I need to set an alarm for 10:30 PM every Sunday to remember to prepare for next week's work.
-{
-    "intent": "ACTION_SET_ALARM",
-    "uri": "",
-    "mime": "",
-    "extras": {
-        "EXTRA_HOUR": 22,
-        "EXTRA_MINUTES": 30,
-        "EXTRA_MESSAGE": "Prepare for Work",
-        "EXTRA_DAYS": [
-            1
-        ],
-        "EXTRA_RINGTONE": "",
-        "EXTRA_VIBRATE": true
-    },
+<function_call> {
+    "name": "func2",
+    "arguments": {
+        "arg1": "value1",
+        "arg2": "value2",
+        ...
+    }
 }
-If some field is not applicable, you can leave it empty. Remember to only provide the intent and the solution in the specific format. Do not provide any additional information.
-                                
-Now I will give you a user query and a list of intents. You should provide the intent and the solution to the user query.
-REMEMBER YOU MUST GIVE JUST AN JSON STRICTLY FOLLOWING THE FORMAT I GAVE YOU ABOVE AS OUTPUT. NOTHING ELSE.
+...
+If an argument is a response from a previous function call, you can reference it in the following way:
+<function_call> {
+    "name": "func3",
+    "arguments": {
+        "arg1": "value1",
+        "arg2": "<function_response>func1",
+        ...
+    }
+}
+NO other text MUST be included. 
 
-User query: $user_query
-Here are the intents you can use to solve the user query:
-$intents_info
+Now my query is: $user_query
 """)
 
 class Handler:
@@ -81,8 +79,12 @@ class OpenAIHandler(Handler):
         # This method is used to retrive model response for each model.
         message = [
             {
+                "role": "system",
+                "content": SYSTEM_PROMPT   
+            },
+            {
                 "role": "user",
-                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, intents_info="\n".join(documents))
+                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents))
             },
         ]
         # print(message)
@@ -107,8 +109,12 @@ class HFCausalLMHandler(Handler):
         # This method is used to retrive model response for each model.
         message = [
             {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
                 "role": "user",
-                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, intents_info="\n".join(documents))
+                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents))
             },
         ]
         
@@ -161,7 +167,7 @@ class ChromaDBRetriever(Retriever):
     def __init__(self, data_path: str) -> None:
         super().__init__()
         self.client = chromadb.PersistentClient(path="./chromaDB")
-        self.collection = self.client.get_or_create_collection('intents')
+        self.collection = self.client.get_or_create_collection('functions')
     
     def retrieve(self, query: str, n_results: int) -> List[str]:
         results = self.collection.query(
@@ -179,29 +185,32 @@ class ChromaDBRetriever(Retriever):
 class FakeRetriever(Retriever):
     def __init__(self, data_path: str) -> None:
         super().__init__()
-        self.query_to_intents = {}
+        self.query_to_functions = {}
         with open(data_path, "r") as f:
             for line in f:
                 item = json.loads(line)
-                self.query_to_intents[item["query"]] = item["intent"]
+                self.query_to_functions[item["query"]] = [d["name"] for d in item["answers"]]
                 
-        self.intents_info = {}
-        with open("data/intents.jsonl", "r") as f:
+        self.api_info = {}
+        with open("data/api.jsonl", "r") as f:
             for line in f:
                 item = json.loads(line)
-                self.intents_info[item["action"]] = item
+                self.api_info[item["name"]] = item
     
     def retrieve(self, query: str, n_results: int) -> List[str]:
-        # retrieve 1 actual intent and n_results - 1 fake intents
-        actual_intent = self.query_to_intents[query]
-        fake_intents = list(self.intents_info.keys())
-        fake_intents.remove(actual_intent)
-        fake_intents = random.sample(fake_intents, n_results - 1)
+        # retrieve n actual intent and n_results - n fake intents
+        actual_functions = self.query_to_functions[query]
+        fake_functions = list(self.api_info.keys())
+        fake_functions = [f for f in fake_functions if f not in actual_functions]
+        if len(actual_functions) > n_results:
+            fake_functions = []
+        else:
+            fake_functions = random.sample(fake_functions, n_results - len(actual_functions))
         
-        all_intents = [actual_intent] + fake_intents
+        all_functions = actual_functions + fake_functions
         documents = [
-            json.dumps(self.intents_info[intent], indent=2, ensure_ascii=False)
-            for intent in all_intents
+            json.dumps(self.api_info[func], indent=2, ensure_ascii=False)
+            for func in all_functions
         ]
         
         return documents
@@ -231,14 +240,13 @@ def test_retriever_accuracy():
         correct = 0
         for item in all_items:
             query = item["query"]
-            actual_intent = item["intent"]
+            actual_functions = item["answers"]
             
             documents = retriever.retrieve(query, n_doc)
-            for doc in documents:
-                doc_obj = json.loads(doc)
-                if doc_obj["action"] == actual_intent:
-                    correct += 1
-                    break
+            documents_function_names = [json.loads(doc)["name"] for doc in documents]
+            # check if all actual functions are in the retrieved documents
+            if all([f in documents_function_names for f in actual_functions]):
+                correct += 1
         
         accuracy = correct / len(all_items)
         print(f"Accuracy for {n_doc} documents: {accuracy}")
