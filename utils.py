@@ -486,6 +486,23 @@ class DataFilter(ABC):
             else:
                 if self.fail_callback:
                     self.fail_callback(d)
+                    
+class CombinedFilter(DataFilter):
+    def __init__(self, filters: List[DataFilter], fail_callback: Callable[[Dict[str, str]], None] = None):
+        super().__init__(fail_callback)
+        self.filters = filters
+        
+    @abstractmethod
+    def combine(self, origin_data: Iterable[Dict[str, str]], 
+                filterd_data: Iterable[Dict[str, str]])->Iterable[Dict[str, str]]:
+        for d1, d2 in zip(origin_data, filterd_data):
+            yield d1.update(d2)
+    
+    def filter(self, data: Iterable[Dict[str, str]]) -> Iterable[Dict[str, str]]:
+        origin = data
+        for f in self.filters:
+            data = f.filter(data)
+        return self.combine(origin, data)
     
 class JsonExtractor(DataFilter):
     def preprocess(self, data: Iterable[Dict[str, str]]) -> Iterable[Dict[str, str]]:
@@ -564,6 +581,9 @@ class LLMDataCollector:
         process_bar.update(num_generated)
         while num_generated < num_data:
             samples = [self.sampler.sample() for _ in range(self.num_queries)]
+            samples = [sample for sample in samples if sample is not None]
+            if not samples:
+                break
             prompts = [self.prompt.substitute(sample) for sample in samples]
             
             responses = self.generate_response('', prompts)
