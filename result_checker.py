@@ -5,7 +5,7 @@ import os
 
 parser = argparse.ArgumentParser(description='check result of generation of GPT')
 parser.add_argument("--input", type=str, default="./results/openai_gpt-4o-mini_result.jsonl", help="Path to the input file")
-parser.add_argument("--answer", type=str, default="./data/annotation_data.jsonl", help="Path to the answer file")
+parser.add_argument("--api", type=str, default="./data/annotated_api.jsonl", help="Path to the answer file")
 parser.add_argument("--output", type=str, default="./results/accuracy.json", help="Path to the output accuracy file")
 parser.add_argument("--model_name", type=str, default="openai_gpt-4o-mini", help="Model name")
 parser.add_argument("--task_name", type=str, default="", help="Task name")
@@ -52,9 +52,31 @@ def deep_compare(obj1, obj2, ftype="strict"):
     elif isinstance(obj1, list) and isinstance(obj2, list):
         if len(obj1) != len(obj2):
             return False
-        for item1, item2 in zip(obj1, obj2):
-            if not deep_compare(item1, item2, ftype=ftype):
+        # for item1, item2 in zip(obj1, obj2):
+        #     if not deep_compare(item1, item2, ftype=ftype):
+        #         return False
+        
+        # no need to follow the order
+        # here [1, 2, 2] [1, 2, 3] will return True
+        # so we need to check double direction
+        for item1 in obj1:
+            found = False
+            for item2 in obj2:
+                if deep_compare(item1, item2, ftype=ftype):
+                    found = True
+                    break
+            if not found:
                 return False
+        
+        for item2 in obj2:
+            found = False
+            for item1 in obj1:
+                if deep_compare(item1, item2, ftype=ftype):
+                    found = True
+                    break
+            if not found:
+                return False
+        
         return True
     
     elif isinstance(obj1, str) and isinstance(obj2, str):
@@ -67,37 +89,6 @@ def deep_compare(obj1, obj2, ftype="strict"):
         return obj1 == obj2
     
     return False
-
-
-def check_with_type(candidate, ref, l, field_type):
-    for key in l:
-        if key not in candidate:
-            return False
-        if not deep_compare(candidate[key], ref[key], field_type[key]["type"]):
-            return False
-    
-    return True
-
-
-def check(candidate, ref):
-    if "intent" not in candidate:
-        return False
-    
-    if candidate["intent"] != ref["intent"]:
-        return False
-    
-    # check uri and mime
-    if not check_with_type(candidate, ref, ["uri", "mime"], ref["field_type"]):
-        return False
-    
-    # check extras
-    if "extras" not in candidate:
-        return False
-    
-    if not check_with_type(candidate["extras"], ref["extras"], ref["extras"].keys(), ref["field_type"]["extras"]):
-        return False
-    
-    return True
     
     
 def add_suffix(filename, suffix):
@@ -109,40 +100,71 @@ def add_suffix(filename, suffix):
     
     return new_filename
 
+def check_result(resp, answer, apis_info):
+    correct_num = 0
+    total_num = 0
+    # check if answers is in response
+    resp_map = {item["name"]: item for item in resp}
+    for ans in answer:
+        func_name = ans["name"]
+        api_info = apis_info[func_name]
+        if func_name not in resp_map:
+            total_num += len(api_info["arguments"])
+            continue
+        
+        resp_ans = resp_map[func_name]
+        for arg_name, arg_value in api_info["arguments"].items():
+            if arg_name not in ans["arguments"] and arg_name not in resp_ans["arguments"]:
+                correct_num += 1
+                total_num += 1
+            else:
+                if arg_value["required"] and arg_name not in ans["arguments"]:
+                    total_num += 1
+                    continue
+                arg_default = arg_value.get("default", None)
+                resp_arg_value = resp_ans["arguments"].get(arg_name, arg_default)
+                ans_arg_value = ans["arguments"].get(arg_name, arg_default)
+                check_type = arg_value["match_type"]
+                if deep_compare(ans_arg_value, resp_arg_value, ftype=check_type):
+                    correct_num += 1
+                    total_num += 1
+                else:
+                    total_num += 1
+    return correct_num, total_num
+    
 
 def main():
     with open(arg.input, "r") as fin:
-        gpt_result = [json.loads(line) for line in fin]
+        results = [json.loads(line) for line in fin]
     
-    with open(arg.answer, "r") as fin:
-        answer = [json.loads(line) for line in fin]
-    
-    correct_num = 0
+    apis_info = {}
+    with open(arg.api, "r") as fin:
+        for line in fin:
+            item = json.loads(line)
+            apis_info[item["name"]] = item
+            
     
     pass_output = add_suffix(arg.input, "pass")
     fail_output = add_suffix(arg.input, "fail")
     
-    with open(pass_output, "w") as pass_fout, open(fail_output, "w") as fail_fout:
-        for gpt_item, answer_item in zip(gpt_result, answer):
-            assert gpt_item["query"] == answer_item["query"]
-            answer_item.pop("query")
-            curr_item = {
-                "query": gpt_item["query"],
-                "generate": gpt_item["response"],
-                "answer": answer_item,
-            }
-            
-            if is_field_none(gpt_item["response"]):
-                fail_fout.write(json.dumps(curr_item) + "\n")
-                continue
-            
-            if check(gpt_item["response"], answer_item):
-                correct_num += 1
-                pass_fout.write(json.dumps(curr_item) + "\n")
-            else:
-                fail_fout.write(json.dumps(curr_item) + "\n")
     
-    print(f"Accuracy: {correct_num / len(gpt_result)}")
+    with open(pass_output, "w") as pass_fout, open(fail_output, "w") as fail_fout:
+        score = 0
+        for result in results:
+            resp, answer = result["response"], result["answers"]
+            correct_num, total_num = check_result(resp, answer, apis_info)
+            if total_num == 0:
+                delta_score = 1
+            else:
+                delta_score = correct_num / total_num
+            if abs(delta_score - 1) < 1e-6:
+                pass_fout.write(json.dumps(result) + "\n")
+            else:
+                fail_fout.write(json.dumps(result) + "\n")
+            score += delta_score
+        
+        accuracy = score / len(results)
+                
     
     if os.path.exists(arg.output): 
         with open(arg.output, "r") as fin:
@@ -150,7 +172,7 @@ def main():
     else:
         acc = {}
     
-    acc[f"{arg.model_name}_{arg.task_name}"] = correct_num / len(gpt_result)
+    acc[f"{arg.model_name}_{arg.task_name}"] = accuracy
     
     with open(arg.output, "w") as fout:
         json.dump(acc, fout, indent=4)

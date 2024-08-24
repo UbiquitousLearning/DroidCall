@@ -5,7 +5,7 @@ from openai import OpenAI
 from string import Template
 from tqdm import tqdm
 import os
-from utils import get_json_obj
+from utils import get_json_obj, extract_and_parse_jsons
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import argparse
 import random
@@ -23,33 +23,38 @@ Here is a list of functions in JSON format that you can invoke:
 $functions
 
 Should you decide to return the function call(s), Put it in the format of 
-<function_call> {
-    "name": "func1",
-    "arguments": {
-        "arg1": "value1",
-        "arg2": "value2",
-        ...
-    }
-}
-<function_call> {
-    "name": "func2",
-    "arguments": {
-        "arg1": "value1",
-        "arg2": "value2",
-        ...
-    }
-}
-...
-If an argument is a response from a previous function call, you can reference it in the following way:
-<function_call> {
+[
+    {
+        "name": "func1",
+        "arguments": {
+            "arg1": "value1",
+            "arg2": "value2",
+            ...
+        }
+    },
+    {
+        "name": "func2",
+        "arguments": {
+            "arg1": "value1",
+            "arg2": "value2",
+            ...
+        }
+    },
+    ...
+]
+If an argument is a response from a previous function call, you can reference it in the following way like the argument value of arg2 in func3:
+{
     "name": "func3",
     "arguments": {
         "arg1": "value1",
-        "arg2": "<function_response>func1",
+        "arg2": "@func2",
         ...
     }
 }
-NO other text MUST be included. 
+This means that the value of arg2 in func3 is the response from func2.
+
+If there is a way to achieve the purpose using the given functions, please provide the function call(s) in the above format.
+REMEMBER TO ONLY RETURN THE FUNCTION CALLS LIKE THE EXAMPLE ABOVE, NO OTHER INFORMATION SHOULD BE RETURNED.
 
 Now my query is: $user_query
 """)
@@ -124,7 +129,7 @@ class HFCausalLMHandler(Handler):
                                        top_p=self.top_p, temperature=self.temperature,
                                        do_sample=True)
         text = self.tok.decode(outputs[0])
-        prefix = self.tok.apply_chat_template(message, tokenize=False, add_generation_prompt=False)
+        prefix = self.tok.apply_chat_template(message, tokenize=False, add_generation_prompt=True)
         response = text[len(prefix):]
         return response
     
@@ -143,7 +148,7 @@ HANDLER_MAP = {
 }
 
 parser = argparse.ArgumentParser(description='Generate solution for the task')
-parser.add_argument('--input', type=str, default='./data/filtered_data.jsonl', help='Path to the input file')
+parser.add_argument('--input', type=str, default='./data/sample_instructions.jsonl', help='Path to the input file')
 parser.add_argument('--retrieve_doc_num', type=int, default=2, help='Number of documents to retrieve')
 parser.add_argument('--model_name', type=str, default='gpt-4o-mini', help='model name')
 parser.add_argument('--handler', type=str, default='openai', help='Handler to use for inference',
@@ -257,17 +262,23 @@ def test_retriever_accuracy():
     df = pd.DataFrame(data)
     print(df)
             
-
+def check_format(ans):
+    if not isinstance(ans, dict):
+        return False
+    if "name" not in ans or "arguments" not in ans:
+        return False
+    if not isinstance(ans["arguments"], dict):
+        return False
+    return True
 
 def main():
     handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path, arg.adapter_path)
     
-    queries = []
+    all_instructions = []
     with open(arg.input, "r") as f:
         for line in f:
             j = json.loads(line)
-            user_query = j["query"]
-            queries.append(user_query)
+            all_instructions.append(j)
     
     # create output directory if not exists
     if not os.path.exists("./results"):
@@ -276,19 +287,21 @@ def main():
     
     retriever = RETRIEVER_MAP[arg.retriever](arg.input)
     
-    for query in tqdm(queries):
+    for instruction in tqdm(all_instructions):
+        query = instruction["query"]
         documents = retriever.retrieve(query, arg.retrieve_doc_num)
         
         retry_num = 4
         
         while retry_num > 0:
             response = handler.inference(query, documents)
-            res = get_json_obj(response)
-            if res:
+            print(f"response: {response}\n\n")
+            res = [call for call in extract_and_parse_jsons(response)]
+            if res and all([check_format(ans) for ans in res]):
                 break
             retry_num -= 1
             
-        output_file.write(json.dumps({"query": query, "response": res}, ensure_ascii=False) + "\n")
+        output_file.write(json.dumps({"query": query, "response": res, "answers": instruction["answers"]}, ensure_ascii=False) + "\n")
         output_file.flush()
         
     output_file.close()

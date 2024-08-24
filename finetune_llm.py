@@ -5,7 +5,7 @@ from peft import LoraConfig, get_peft_model
 import torch
 import wandb
 
-DATA_PATH = "data/finetune_dataset.jsonl"
+DATA_PATH = "data/train_dataset.jsonl" # "data/finetune_dataset.jsonl"
 MODEL_PATH =  "/data/share/Qwen2-1.5B-Instruct" # "model/HuggingFaceTB/SmolLM"
 OUTPUT_DIR = "checkpoint"
 
