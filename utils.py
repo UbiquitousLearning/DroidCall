@@ -358,35 +358,104 @@ def gen_prompts(arg):
         print("=======================================")
         
 
+import pyparsing as pp
+from pyparsing import pyparsing_common as ppc
+
 def get_json_obj(text: str):
-    # 更新后的正则表达式模式，用于匹配JSON对象或数组
-    json_pattern = r'\[(?:[^[\]]*|\[(?:[^[\]]*|\[[^[\]]*\])*\])*\]|\{(?:[^{}]*|\{(?:[^{}]*|\{[^{}]*\})*\})*\}'
-    
-    # 使用finditer来查找所有匹配的JSON字符串
-    matches = re.finditer(json_pattern, text)
-    
-    for match in matches:
-        json_string = match.group()
+    def make_keyword(kwd_str, kwd_value):
+        return pp.Keyword(kwd_str).setParseAction(pp.replaceWith(kwd_value))
+
+    if not hasattr(get_json_obj, "jsonDoc"):
+        # set to False to return ParseResults
+        RETURN_PYTHON_COLLECTIONS = True
+
+        TRUE = make_keyword("true", True)
+        FALSE = make_keyword("false", False)
+        NULL = make_keyword("null", None)
+
+        LBRACK, RBRACK, LBRACE, RBRACE, COLON = map(pp.Suppress, "[]{}:")
+
+        jsonString = pp.dblQuotedString().setParseAction(pp.removeQuotes)
+        jsonNumber = ppc.number().setName("jsonNumber")
+
+        jsonObject = pp.Forward().setName("jsonObject")
+        jsonValue = pp.Forward().setName("jsonValue")
+
+        jsonElements = pp.delimitedList(jsonValue).setName(None)
+
+        jsonArray = pp.Group(
+            LBRACK + pp.Optional(jsonElements) + RBRACK, aslist=RETURN_PYTHON_COLLECTIONS
+        ).setName("jsonArray")
+
+        jsonValue << (jsonString | jsonNumber | jsonObject | jsonArray | TRUE | FALSE | NULL)
+
+        memberDef = pp.Group(
+            jsonString + COLON + jsonValue, aslist=RETURN_PYTHON_COLLECTIONS
+        ).setName("jsonMember")
+
+        jsonMembers = pp.delimitedList(memberDef).setName(None)
+        jsonObject << pp.Dict(
+            LBRACE + pp.Optional(jsonMembers) + RBRACE, asdict=RETURN_PYTHON_COLLECTIONS
+        )
+
+        jsonComment = pp.cppStyleComment
+        jsonObject.ignore(jsonComment)
+        jsonDoc = jsonObject | jsonArray
+        get_json_obj.jsonDoc = jsonDoc
+    for _, l, r in get_json_obj.jsonDoc.scanString(text):
+        json_string = text[l:r]
         try:
-            # 解析JSON字符串为Python对象
-            python_obj = json.loads(json_string)
-            
-            return python_obj
+            # 尝试解析找到的JSON字符串
+            parsed_data = json.loads(json_string)
+            return parsed_data
         except json.JSONDecodeError as e:
             print(f"JSON decoding error: {e}")
-            return None
         except Exception as e:
             print(f"An error occurred: {e}")
-            return None
         
-def extract_and_parse_jsons(input_string):
-    # 使用正则表达式匹配可能的JSON结构
-    json_pattern = r'\[(?:[^[\]]*|\[(?:[^[\]]*|\[[^[\]]*\])*\])*\]|\{(?:[^{}]*|\{(?:[^{}]*|\{[^{}]*\})*\})*\}'
-    
-    matches = re.finditer(json_pattern, input_string)
-    
-    for match in matches:
-        json_string = match.group()
+def extract_and_parse_jsons(text):
+    def make_keyword(kwd_str, kwd_value):
+        return pp.Keyword(kwd_str).setParseAction(pp.replaceWith(kwd_value))
+
+    if not hasattr(extract_and_parse_jsons, "jsonDoc"):
+        # set to False to return ParseResults
+        RETURN_PYTHON_COLLECTIONS = True
+
+        TRUE = make_keyword("true", True)
+        FALSE = make_keyword("false", False)
+        NULL = make_keyword("null", None)
+
+        LBRACK, RBRACK, LBRACE, RBRACE, COLON = map(pp.Suppress, "[]{}:")
+
+        jsonString = pp.dblQuotedString().setParseAction(pp.removeQuotes)
+        jsonNumber = ppc.number().setName("jsonNumber")
+
+        jsonObject = pp.Forward().setName("jsonObject")
+        jsonValue = pp.Forward().setName("jsonValue")
+
+        jsonElements = pp.delimitedList(jsonValue).setName(None)
+
+        jsonArray = pp.Group(
+            LBRACK + pp.Optional(jsonElements) + RBRACK, aslist=RETURN_PYTHON_COLLECTIONS
+        ).setName("jsonArray")
+
+        jsonValue << (jsonString | jsonNumber | jsonObject | jsonArray | TRUE | FALSE | NULL)
+
+        memberDef = pp.Group(
+            jsonString + COLON + jsonValue, aslist=RETURN_PYTHON_COLLECTIONS
+        ).setName("jsonMember")
+
+        jsonMembers = pp.delimitedList(memberDef).setName(None)
+        jsonObject << pp.Dict(
+            LBRACE + pp.Optional(jsonMembers) + RBRACE, asdict=RETURN_PYTHON_COLLECTIONS
+        )
+
+        jsonComment = pp.cppStyleComment
+        jsonObject.ignore(jsonComment)
+        jsonDoc = jsonObject | jsonArray
+        extract_and_parse_jsons.jsonDoc = jsonDoc
+    for _, l, r in extract_and_parse_jsons.jsonDoc.scanString(text):
+        json_string = text[l:r]
         try:
             # 尝试解析找到的JSON字符串
             parsed_data = json.loads(json_string)
@@ -404,6 +473,16 @@ def extract_and_parse_jsons(input_string):
             print(f"An error occurred: {e}")
 
 from string import Template
+
+class Colors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 class Sampler(ABC):
     def __init__(self):
@@ -424,7 +503,8 @@ class RandomListSampler(Sampler):
         raise NotImplementedError
     
     def sample(self)->dict:
-        samples = random.sample(self.data, self.num_samples_per_query)
+        sample_num = min(len(self.data), self.num_samples_per_query)
+        samples = random.sample(self.data, sample_num)
         return self.format(samples)
     
     def add_data(self, data: List[Dict[str, str]]):
@@ -481,9 +561,12 @@ class DataFilter(ABC):
     
     def filter(self, data: Iterable[Dict[str, str]])->Iterable[Dict[str, str]]:
         for d in self.preprocess(data):
+            print(f"{Colors.WARNING}filter: {self}, started validate{Colors.ENDC}")
             if self.validate(d):
+                print(f"{Colors.WARNING}filter: {self}, end validate (pass){Colors.ENDC}")
                 yield d
             else:
+                print(f"{Colors.WARNING}filter: {self}, end validate (fail){Colors.ENDC}")
                 if self.fail_callback:
                     self.fail_callback(d)
                     
@@ -506,10 +589,12 @@ class CombinedFilter(DataFilter):
     
 class JsonExtractor(DataFilter):
     def preprocess(self, data: Iterable[Dict[str, str]]) -> Iterable[Dict[str, str]]:
+        print(f"{Colors.BOLD} started to extract jsons{Colors.ENDC}")
         for d in data:
-            if d["finish_reason"] == "stop":
-                for item in extract_and_parse_jsons(d["text"]):
-                    yield item
+            # if d["finish_reason"] == "stop":
+            for item in extract_and_parse_jsons(d["text"]):
+                print(f"{Colors.BOLD} extract !!{Colors.ENDC}")
+                yield item
             else:
                 if self.fail_callback:
                     self.fail_callback(d)
@@ -576,15 +661,19 @@ class LLMDataCollector:
             
         
     def collect(self, num_data: int, desc: str = "collecting data", num_generated: int = 0,
-                once: bool = False)->Iterable[Dict[str, str]]:
+                once: bool = False, retry_num: int = 2, lower_num: int = 5)->Iterable[Dict[str, str]]:
         process_bar = tqdm(total=num_data, desc=desc)
         process_bar.update(num_generated)
+        retry = retry_num
         while num_generated < num_data:
             samples = [self.sampler.sample() for _ in range(self.num_queries)]
             samples = [sample for sample in samples if sample is not None]
             if not samples:
                 break
             prompts = [self.prompt.substitute(sample) for sample in samples]
+            if self.verbose:
+                for prompt in prompts:
+                    logging.info(f"{Colors.OKBLUE}prompt: {prompt}{Colors.ENDC}\n\n\n")
             
             responses = self.generate_response('', prompts)
             
@@ -592,15 +681,28 @@ class LLMDataCollector:
                 for prompt, response in zip(prompts, responses):
                     logging.info(f"\033[32m prompt: {prompt} finish_reason: {response['finish_reason']}\033[0m\n\033[31mresponse: {response['text']}\033[0m\n\n")
             
-            for filter in self.data_filters:
+            for filter_idx, filter in enumerate(self.data_filters):
+                # if self.verbose:
+                    # print(f"started filter: {filter_idx}: {filter}")
                 responses = filter.filter(responses)
-                
+                # if self.verbose:
+                    # print(f"end filter: {filter_idx}")
+            
+            num_filtered = 0
             for response in responses:
                 if self.verbose:
                     logging.info(f"\033[34mresponse: {response}\033[0m]")
                 yield response
+                num_filtered += 1
                 num_generated += 1
                 process_bar.update(1)
+            
+            if num_filtered <= lower_num:
+                retry -= 1
+                if retry <= 0:
+                    break
+            else:
+                retry = retry_num
                 
             if once:
                 break

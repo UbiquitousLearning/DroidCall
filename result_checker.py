@@ -150,21 +150,23 @@ def main():
     
     with open(pass_output, "w") as pass_fout, open(fail_output, "w") as fail_fout:
         score = 0
+        total_correct_num = 0
         for result in results:
             resp, answer = result["response"], result["answers"]
             correct_num, total_num = check_result(resp, answer, apis_info)
             if total_num == 0:
-                delta_score = 1
+                delta_score = 1.0
             else:
                 delta_score = correct_num / total_num
             if abs(delta_score - 1) < 1e-6:
+                total_correct_num += 1
                 pass_fout.write(json.dumps(result) + "\n")
             else:
                 fail_fout.write(json.dumps(result) + "\n")
             score += delta_score
         
         accuracy = score / len(results)
-                
+        total_correct_accuracy = total_correct_num / len(results)
     
     if os.path.exists(arg.output): 
         with open(arg.output, "r") as fin:
@@ -172,7 +174,10 @@ def main():
     else:
         acc = {}
     
-    acc[f"{arg.model_name}_{arg.task_name}"] = accuracy
+    acc[f"{arg.model_name}_{arg.task_name}"] = {
+        "soft_accuracy": accuracy,
+        "accuracy": total_correct_accuracy,
+    }
     
     with open(arg.output, "w") as fout:
         json.dump(acc, fout, indent=4)

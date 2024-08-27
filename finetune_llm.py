@@ -5,7 +5,7 @@ from peft import LoraConfig, get_peft_model
 import torch
 import wandb
 
-DATA_PATH = "data/train_dataset.jsonl" # "data/finetune_dataset.jsonl"
+DATA_PATH = "data/function_call/glaive_train.jsonl" # "data/finetune_dataset.jsonl"
 MODEL_PATH =  "/data/share/Qwen2-1.5B-Instruct" # "model/HuggingFaceTB/SmolLM"
 OUTPUT_DIR = "checkpoint"
 
@@ -28,7 +28,7 @@ wandb.init(
     # track hyperparameters and run metadata
     config={
         "learning_rate": LEARNING_RATE,
-        "architecture": "SmolLM",
+        "architecture": "Qwen2-1.5B-instruct",
         "epochs": EPOCHS,
         "lora_r": LORA_R,
         "lora_alpha": LORA_ALPHA,

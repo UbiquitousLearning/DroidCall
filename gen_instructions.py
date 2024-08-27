@@ -7,6 +7,7 @@ from openai import OpenAI
 import os
 from tqdm import tqdm
 from typing import List, Dict, Iterable
+import argparse
 
 import logging
 
@@ -27,11 +28,12 @@ I need your help to generate some function calling datasets. I will provide you 
 6. When providing parameters, if a parameter has required=False, you may omit its value.
 7. The query-answer pairs should cover as many possible uses of the tool as possible.
 8. The generated data must be presented in the format given in my example.
+9. The parameter values generated with function call generated must be values that can be inferred from the user's query; you cannot fabricate a value out of thin air.
 
 following are some examples:
 $examples
 
-Now I will give you a tool, and you help me generate 20 query-answer pairs.
+Now I will give you a tool, and you help me generate 40 query-answer pairs.
 REMEMBER TO GENERATE THE RESULT IN JSON FORMAT LIKE THE EXAMPLE ABOVE
 tool: $tool
 """)
@@ -48,12 +50,13 @@ You need to generate queries and corresponding answers based on this tool, i.e.,
 6. When providing parameters, if a parameter has required=False, it is not necessary to provide its value.
 7. The query-answer pairs should cover as many possible uses of the tool as possible.
 8. The generated data must be presented in the format given in my example.
+9. The parameter values generated with function call generated must be values that can be inferred from the user's query; you cannot fabricate a value out of thin air.
 
 following are tool I provided and some examples of query-answer pairs:
 tool: $tool
 examples: $examples
 
-Now please help me generate 20 query-answer pairs.
+Now please help me generate 40 query-answer pairs.
 REMEMBER TO GENERATE THE RESULT IN JSON FORMAT LIKE THE EXAMPLE ABOVE
 """)
 
@@ -83,10 +86,30 @@ def check_format(data):
             return False
     return True
 
-OUTPUT_FILE = "data/instructions.jsonl"
-NUM_GENERATE = 40
-SIMILARITY_THRESHOLD = 0.75
-SAMPLE_NUM = 4
+argparser = argparse.ArgumentParser()
+argparser.add_argument("--output", type=str, default="data/instructions.jsonl")
+argparser.add_argument("--num_generate", type=int, default=300)
+argparser.add_argument("--similarity_threshold", type=float, default=0.75)
+argparser.add_argument("--sample_num", type=int, default=8)
+argparser.add_argument("--model_class", type=str, default="gpt", choices=["gpt", "deepseek"])
+argparser.add_argument("--model_name", type=str, default="gpt-4o")
+args = argparser.parse_args()
+
+MODEL_CLASS_MAP = {
+    "gpt": {
+        "base_url": None,
+        "api_key": None,
+    },
+    "deepseek": {
+        "base_url": "https://api.deepseek.com/",
+        "api_key": os.environ.get("DEEPSEEK_API_KEY", None),
+    }
+}
+
+OUTPUT_FILE = args.output
+NUM_GENERATE = args.num_generate
+SIMILARITY_THRESHOLD = args.similarity_threshold
+SAMPLE_NUM = args.sample_num
 
 from utils import RandomListSampler, JsonlSampler, LLMDataCollector, JsonExtractor, SimilarityFilter, DataFilter
 
@@ -105,27 +128,37 @@ if __name__ == "__main__":
     path = "../xLLM/tokenizer_qwen2"
     tokenizer = AutoTokenizer.from_pretrained(path)
     tokenizer = HuggingFaceTokenizer(tokenizer)
+    
+    func2instructions = {}
+    with open(args.output) as f:
+        for l in f.readlines():
+            d = json.loads(l)
+            all_examples.append(d)
+            func_name = d["answers"][0]["name"]
+            if func_name not in func2instructions:
+                func2instructions[func_name] = []
+            func2instructions[func_name].append(d)
 
     records = SimilarityRecord(tokenizer)
-    client = OpenAI()
-    generate_response = OpenAiGenerateResponse(client=client, model="gpt-4o-mini", system_prompt="")
+    client = OpenAI(api_key=MODEL_CLASS_MAP[args.model_class]["api_key"], base_url=MODEL_CLASS_MAP[args.model_class]["base_url"])
+    generate_response = OpenAiGenerateResponse(client=client, model=args.model_name, system_prompt="")
 
     with open("data/api.jsonl") as f:
         all_tools = [json.loads(line) for line in f.readlines()]
-    
-    if os.path.exists(".tmp.json"):
-        with open(".tmp.json", "r") as f:
-            j = json.load(f)
-            processed_num = j["processed_num"]
-            
     
     output_file = open(OUTPUT_FILE, "a")
     similarity_filter = SimilarityFilter(records, key="query", bound=SIMILARITY_THRESHOLD)
     filters = [JsonExtractor(), FormatFilter(), similarity_filter]
     for tool_idx, tool in enumerate(all_tools):
-        if tool_idx <= processed_num:
-            continue
         data = []
+        for example in func2instructions.get(tool["name"], []):
+            records.add(example["query"])
+            data.append(example)
+        
+        initial_num = len(data)
+        if initial_num >= NUM_GENERATE:
+            continue
+        
         tool_text = json.dumps(tool, indent=4, ensure_ascii=False)
         print(f"started to process tool {tool_idx}: {tool_text}")
         class ExampleSampler(RandomListSampler):
@@ -137,81 +170,34 @@ if __name__ == "__main__":
                                      generate_response=generate_response, verbose=True)
         
         # this is initial collection
-        for d in collector.collect(NUM_GENERATE, "init collection", once=True):
-            data.append(d)
+        while len(data) <= 0:
+            for d in collector.collect(NUM_GENERATE, "init collection", num_generated=len(data), once=True):
+                data.append(d)
+                d["tools"] = [tool]
+                output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
+                output_file.flush()
         
         class QuerySampler(RandomListSampler):
             def format(self, samples: List[Dict[str, str]])->Dict[str, str]:
+                samples = [
+                    {k: v for k, v in sample.items() if k not in["tools"]}
+                    for sample in samples
+                ]
                 examples_text = "\n".join([json.dumps(sample, indent=2, ensure_ascii=False) for sample in samples])
                 return {"examples": examples_text, "tool": tool_text}
             
         collector.switch(GEN_PROMPT, QuerySampler(data, SAMPLE_NUM))
         for d in collector.collect(NUM_GENERATE, "gen collection", len(data)):
             data.append(d)
-        
-        for d in data:
             d["tools"] = [tool]
             output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
-        output_file.flush()
-        with open(".tmp.json", "w") as f:
-            f.write(json.dumps({"processed_num": tool_idx}))
+            output_file.flush()
+        
+        # for d in data[initial_num:]:
+        #     d["tools"] = [tool]
+        #     output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
+        # output_file.flush()
         
         records = SimilarityRecord(tokenizer)
         similarity_filter.change_record(records)
-        
-        # process_bar = tqdm(total=NUM_GENERATED, desc=f"processing tool {tool_idx}")
-        # data = []
-        # tool_text = json.dumps(tool, indent=4, ensure_ascii=False)
-        # print(f"started to process tool {tool_idx}: {tool_text}")
-        # examples = random.sample(all_examples, 2)
-        # examples_text = "\n".join([format_example(example) for example in examples])
-        # prompt_text = INIT_PROMPT.substitute(examples=examples_text, tool=tool_text)
-        # # print(prompt_text)
-        # # print("\n\n")
-        
-        # output_file = open(OUTPUT_FILE, "a")
-        # resps = generate_response('', [prompt_text])
-        
-        # for resp in resps:
-        #     if resp["finish_reason"] == "stop":
-        #         # print(f'text: {resp["text"]}\n\n')
-        #         for j in extract_and_parse_jsons(resp["text"]):
-        #             # print(json.dumps(j, indent=2, ensure_ascii=False))
-        #             if not check_format(j):
-        #                 continue
-        #             most_similar, score = records.update(j["query"], SIMILARITY_THRESHOLD)
-        #             if score > SIMILARITY_THRESHOLD:
-        #                 print(f"most similar: {most_similar}, score: {score}")
-        #             else:
-        #                 process_bar.update(1)
-        #                 data.append(j)
-                    
-        
-        # while len(data) < NUM_GENERATED:
-        #     sampled_query_answer_pairs = random.sample(data, SAMPLE_NUM)
-        #     examples_text = "\n".join([json.dumps(pair, indent=2) for pair in sampled_query_answer_pairs])
-        #     prompt_text = GEN_PROMPT.substitute(examples=examples_text, tool=tool_text)
-        #     # print(f"prompt: {prompt_text}")
-        #     resps = generate_response('', [prompt_text])
-        #     for resp in resps:
-        #         if resp["finish_reason"] == "stop":
-        #             for j in extract_and_parse_jsons(resp["text"]):
-        #                 if not check_format(j):
-        #                     continue
-        #                 most_similar, score = records.update(j["query"], SIMILARITY_THRESHOLD)
-        #                 if score > SIMILARITY_THRESHOLD:
-        #                     print(f"most similar: {most_similar}, score: {score}")
-        #                 else:
-        #                     process_bar.update(1)
-        #                     data.append(j)
-            
-        #     for d in data:
-        #         d["tools"] = [tool]
-        #         output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
-        #     output_file.flush()
-        #     with open(".tmp.json", "w") as f:
-        #         f.write(json.dumps({"processed_num": tool_idx}))
-            
-        
-        
     
