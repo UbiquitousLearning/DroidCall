@@ -5,7 +5,7 @@ from peft import LoraConfig, get_peft_model
 import torch
 import wandb
 
-DATA_PATH = "data/function_call/glaive_train.jsonl" # "data/finetune_dataset.jsonl"
+DATA_PATH = "data/function_call/instruction_train.jsonl" # "data/function_call/glaive_train.jsonl" 
 MODEL_PATH =  "/data/share/Qwen2-1.5B-Instruct" # "model/HuggingFaceTB/SmolLM"
 OUTPUT_DIR = "checkpoint"
 
@@ -15,8 +15,9 @@ EPOCHS = 3
 LORA_R = 4
 LORA_ALPHA = 32
 LORA_DROPOUT = 0.05
-PER_DEVICE_TRAIN_BATCH_SIZE = 4
-GRADIENT_ACCUMULATION_STEPS = 16
+PER_DEVICE_TRAIN_BATCH_SIZE = 2
+PER_DEVICE_EVAL_BATCH_SIZE = 2
+GRADIENT_ACCUMULATION_STEPS = 32
 
 # start a new wandb run to track this script
 wandb.init(
@@ -71,13 +72,14 @@ if __name__ == "__main__":
         packing=False,
         learning_rate=LEARNING_RATE,
         per_device_train_batch_size=PER_DEVICE_TRAIN_BATCH_SIZE,
+        per_device_eval_batch_size=PER_DEVICE_EVAL_BATCH_SIZE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         num_train_epochs=EPOCHS,
         logging_steps=1,
-        save_steps=20,
+        save_steps=80,
         load_best_model_at_end=True,
         eval_strategy="steps",
-        eval_steps=20,
+        eval_steps=80,
         save_total_limit=3,
     )
     

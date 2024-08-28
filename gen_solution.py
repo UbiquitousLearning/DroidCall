@@ -102,6 +102,12 @@ class OpenAIHandler(Handler):
         )
         return response.choices[0].message.content
 
+class DeepseekHandler(OpenAIHandler):
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
+        self.client = OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY", None),
+                             base_url="https://api.deepseek.com/")
+    
 
 class HFCausalLMHandler(Handler):
     def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
@@ -124,10 +130,15 @@ class HFCausalLMHandler(Handler):
         ]
         
         tokenized_chat = self.tok.apply_chat_template(message, tokenize=True, add_generation_prompt=True, return_tensors="pt")
-        outputs = self.model.generate(tokenized_chat.to(self.model.device), 
-                                       max_new_tokens=self.max_tokens, 
-                                       top_p=self.top_p, temperature=self.temperature,
-                                       do_sample=True)
+        if self.temperature > 0:
+            outputs = self.model.generate(tokenized_chat.to(self.model.device), 
+                                        max_new_tokens=self.max_tokens, 
+                                        top_p=self.top_p, temperature=self.temperature,
+                                        do_sample=True)
+        else:
+            outputs = self.model.generate(tokenized_chat.to(self.model.device), 
+                                        max_new_tokens=self.max_tokens, 
+                                        do_sample=False)
         text = self.tok.decode(outputs[0])
         prefix = self.tok.apply_chat_template(message, tokenize=False, add_generation_prompt=True)
         response = text[len(prefix):]
@@ -144,19 +155,23 @@ class LoraCausalLMHandler(HFCausalLMHandler):
 HANDLER_MAP = {
     "openai": OpenAIHandler,
     "hf_causal_lm": HFCausalLMHandler,
-    "lora_causal_lm": LoraCausalLMHandler
+    "lora_causal_lm": LoraCausalLMHandler,
+    "deepseek": DeepseekHandler
 }
 
 parser = argparse.ArgumentParser(description='Generate solution for the task')
-parser.add_argument('--input', type=str, default='./data/sample_instructions.jsonl', help='Path to the input file')
+parser.add_argument('--input', type=str, default='./data/instructions_test.jsonl', help='Path to the input file')
 parser.add_argument('--retrieve_doc_num', type=int, default=2, help='Number of documents to retrieve')
 parser.add_argument('--model_name', type=str, default='gpt-4o-mini', help='model name')
 parser.add_argument('--handler', type=str, default='openai', help='Handler to use for inference',
-                    choices=["openai", "hf_causal_lm", "lora_causal_lm"])
+                    choices=["openai", "hf_causal_lm", "lora_causal_lm", "deepseek"])
 parser.add_argument('--path', type=str, default="/data/share/Qwen2-1.5B-Instruct", help='local dir if model is in local')
 parser.add_argument('--adapter_path', type=str, default="./checkpoint/Qwen2-1.5B-Instruct", help='adapter path')
 parser.add_argument('--task_name', type=str, default='', help='task name')
 parser.add_argument('--retriever', type=str, default='fake', help='retriever to use', choices=["chromadb", "fake"])
+parser.add_argument('--temperature', type=float, default=0.7, help='temperature for generation')
+parser.add_argument('--top_p', type=float, default=1, help='top_p for generation')
+parser.add_argument('--max_tokens', type=int, default=300, help='max tokens for generation')
 arg = parser.parse_args()
 
 
@@ -227,7 +242,7 @@ RETRIEVER_MAP = {
 }
 
 def test_retriever_accuracy():
-    print("Testing retriever accuracy")
+    print(f"Testing retriever({arg.retriever}) accuracy")
     retriever = RETRIEVER_MAP[arg.retriever](arg.input)
     all_items = []
     with open(arg.input, "r") as f:
@@ -250,7 +265,7 @@ def test_retriever_accuracy():
             documents = retriever.retrieve(query, n_doc)
             documents_function_names = [json.loads(doc)["name"] for doc in documents]
             # check if all actual functions are in the retrieved documents
-            if all([f in documents_function_names for f in actual_functions]):
+            if all([f["name"] in documents_function_names for f in actual_functions]):
                 correct += 1
         
         accuracy = correct / len(all_items)
@@ -272,7 +287,7 @@ def check_format(ans):
     return True
 
 def main():
-    handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path, arg.adapter_path)
+    handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path, arg.adapter_path, arg.temperature, arg.top_p, arg.max_tokens)
     
     all_instructions = []
     with open(arg.input, "r") as f:
@@ -300,6 +315,8 @@ def main():
             if res and all([check_format(ans) for ans in res]):
                 break
             retry_num -= 1
+            if arg.temperature <= 0:
+                break
             
         output_file.write(json.dumps({"query": query, "response": res, "answers": instruction["answers"]}, ensure_ascii=False) + "\n")
         output_file.flush()
@@ -310,21 +327,5 @@ def main():
 if __name__ == '__main__':
     # test_retriever_accuracy()
     main()
-    # path = "/data/share/Qwen2-1.5B-Instruct"
-    
-    # tokenizer = AutoTokenizer.from_pretrained(path)
-    # model = AutoModelForCausalLM.from_pretrained(path, device_map="auto")
-    
-    # message = [
-    #     {
-    #         "role": "user",
-    #         "content": "How can I keep fit"
-    #     }
-    # ]
-    
-    # tokenized_chat = tokenizer.apply_chat_template(message, tokenize=True, add_generation_prompt=True, return_tensors="pt").to(model.device)
-    # outputs = model.generate(tokenized_chat, max_new_tokens=1000, top_p=1, temperature=0.7, do_sample=True)
-    # print(tokenizer.decode(outputs[0]))
-
     
     

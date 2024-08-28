@@ -22,7 +22,7 @@ def semantic_compare(a: str, b: str, threshold: float = 0.85):
 
 
 def is_field_none(obj):
-    if not obj:
+    if obj == None:
         return True
 
     if isinstance(obj, str) and obj.strip().lower() == "none":
@@ -104,7 +104,7 @@ def check_result(resp, answer, apis_info):
     correct_num = 0
     total_num = 0
     # check if answers is in response
-    resp_map = {item["name"]: item for item in resp}
+    resp_map = {item.get("name", ""): item for item in resp if isinstance(item, dict)}
     for ans in answer:
         func_name = ans["name"]
         api_info = apis_info[func_name]
@@ -124,7 +124,8 @@ def check_result(resp, answer, apis_info):
                 arg_default = arg_value.get("default", None)
                 resp_arg_value = resp_ans["arguments"].get(arg_name, arg_default)
                 ans_arg_value = ans["arguments"].get(arg_name, arg_default)
-                check_type = arg_value["match_type"]
+                # print(f"{arg_value}")
+                check_type = arg_value.get("match_type", "strict")
                 if deep_compare(ans_arg_value, resp_arg_value, ftype=check_type):
                     correct_num += 1
                     total_num += 1

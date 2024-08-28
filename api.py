@@ -240,7 +240,7 @@ def send_email(
         body (str): The body text of the email.
         cc (Optional[List[str]]): A list of CC recipient email addresses. Default is None.
         bcc (Optional[List[str]]): A list of BCC recipient email addresses. Default is None.
-        attachments List[str]: list of URIs
+        attachments (List[str]): list of URIs
             pointing to the files to be attached to the email. These can be file URIs,
             content URIs, or any other valid Android resource URI. Default is None (meaning no attachments). 
 
@@ -365,7 +365,7 @@ def ACTION_CREATE_DOCUMENT(
     Args:
         mime_type (str): The MIME type of the document to be created (e.g., "text/plain", "application/pdf").
         initial_name (str): The suggested name for the new document.
-        local_only (bool, optional): If True, only allows creation in locations directly accessible on the device. 
+        local_only (bool): If True, only allows creation in locations directly accessible on the device. 
                                      Defaults to False.
 
     Returns:
@@ -459,6 +459,16 @@ def play_music_from_search(
     This function creates an intent URI that simulates the INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH
     action in Android. It allows playing music based on various search criteria such as
     artist, album, song, genre, or playlist.
+    Notes:
+        - The 'query' parameter is always required for backward compatibility.
+        - Different focus modes may require specific parameters:
+          * 'any': No additional parameters required.
+          * 'unstructured': No additional parameters required.
+          * 'genre': 'genre' parameter is required.
+          * 'artist': 'artist' parameter is required.
+          * 'album': 'album' parameter is required.
+          * 'song': 'title' parameter is required.
+          * 'playlist': 'playlist' parameter is required.
 
     Args:
         query (str): The main search query. For 'any' focus, this should be an empty string.
@@ -469,16 +479,6 @@ def play_music_from_search(
         title (Optional[str]): The title of the song to search for.
         genre (Optional[str]): The genre of music to search for.
         playlist (Optional[str]): The name of the playlist to search for.
-        Notes:
-        - The 'query' parameter is always required for backward compatibility.
-        - Different focus modes may require specific parameters:
-          * 'any': No additional parameters required.
-          * 'unstructured': No additional parameters required.
-          * 'genre': 'genre' parameter is required.
-          * 'artist': 'artist' parameter is required.
-          * 'album': 'album' parameter is required.
-          * 'song': 'title' parameter is required.
-          * 'playlist': 'playlist' parameter is required.
 
     Raises:
         ValueError: If the provided focus is invalid or if required parameters for a specific focus are missing.
@@ -606,7 +606,7 @@ def open_settings(setting_type: str = "general") -> None:
     providing quick access to different device configuration options.
 
     Args:
-        setting_type (SettingType): The type of settings screen to open.
+        setting_type (str): The type of settings screen to open.
             Possible values are:
             - "general": General settings (default)
             - "wireless": Wireless & network settings
