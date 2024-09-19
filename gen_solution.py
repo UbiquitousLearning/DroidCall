@@ -10,12 +10,26 @@ from transformers import AutoTokenizer, AutoModelForCausalLM
 import argparse
 import random
 from peft import PeftModelForCausalLM
+from utils import Colors
 
 SYSTEM_PROMPT = """
 You are an expert in composing functions. You are given a question and a set of possible functions. 
 Based on the question, you will need to make one or more function/tool calls to achieve the purpose. 
 If none of the function can be used, point it out. If the given question lacks the parameters required by the function,
 also point it out. You should only return the function call in tools call sections.
+"""
+
+NEST_PROMT = """
+If an argument is a response from a previous function call, you can reference it in the following way like the argument value of arg2 in func3:
+{
+    "name": "func3",
+    "arguments": {
+        "arg1": "value1",
+        "arg2": "@func2",
+        ...
+    }
+}
+This means that the value of arg2 in func3 is the response from func2.
 """
 
 PROMPT_FOR_CHATMODEL = Template("""
@@ -42,16 +56,10 @@ Should you decide to return the function call(s), Put it in the format of
     },
     ...
 ]
-If an argument is a response from a previous function call, you can reference it in the following way like the argument value of arg2 in func3:
-{
-    "name": "func3",
-    "arguments": {
-        "arg1": "value1",
-        "arg2": "@func2",
-        ...
-    }
-}
-This means that the value of arg2 in func3 is the response from func2.
+
+$nest_prompt
+
+$example
 
 If there is a way to achieve the purpose using the given functions, please provide the function call(s) in the above format.
 REMEMBER TO ONLY RETURN THE FUNCTION CALLS LIKE THE EXAMPLE ABOVE, NO OTHER INFORMATION SHOULD BE RETURNED.
@@ -62,13 +70,55 @@ Now my query is: $user_query
 class Handler:
     model_name: str
 
-    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000,
+                 is_nested: bool=False, add_examples: bool = False) -> None:
         self.model_name = model_name
         self.temperature = temperature
         self.top_p = top_p
         self.max_tokens = max_tokens
         self.path = path
         self.adapter_path = adapter_path
+        self.is_nested = is_nested
+        self.add_examples = add_examples
+        
+    def format_message(self, user_query: str, documents: List[str], is_nested: bool=False, 
+                       add_examples: bool = False) -> str:
+        nest_prompt = NEST_PROMT if is_nested else ""
+        example_text = ""
+        if add_examples:
+            sampled_examples = []
+            if not hasattr(self, "examples"):
+                with open("data/instructions_train.jsonl", "r") as f:
+                    examples = [json.loads(line) for line in f]
+                self.examples = examples
+            for doc in documents:
+                doc = json.loads(doc)
+                func_name = doc["name"]
+                for example in self.examples:
+                    ok = False
+                    for ans in example["answers"]:
+                        if ans["name"] == func_name:
+                            ok = True
+                            break
+                    if ok:
+                        sampled_examples.append(example)
+                        break
+            
+            example_text =  "Here is some examples:\n" + "\n".join(f"query: {example["query"]} \nanwsers: {json.dumps(example["answers"], ensure_ascii=False, indent=2)}" for example in sampled_examples)
+                        
+        message = [
+            {
+                "role": "system",
+                "content": SYSTEM_PROMPT
+            },
+            {
+                "role": "user",
+                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents), nest_prompt=nest_prompt, example=example_text)
+            },
+        ]
+        
+        # print(f"{Colors.BOLD}message: {json.dumps(message, indent=2, ensure_ascii=False)}{Colors.ENDC}")
+        return message
 
     def inference(self, user_query: str, documents: List[str]) -> str:
         # This method is used to retrive model response for each model.
@@ -76,22 +126,14 @@ class Handler:
     
 
 class OpenAIHandler(Handler):
-    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
-        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000,
+                 is_nested: bool=False, add_examples: bool = False) -> None:
+        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens, is_nested, add_examples)
         self.client = OpenAI()
 
     def inference(self, user_query: str, documents: List[str]) -> str:
         # This method is used to retrive model response for each model.
-        message = [
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT   
-            },
-            {
-                "role": "user",
-                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents))
-            },
-        ]
+        message = self.format_message(user_query, documents, self.is_nested, self.add_examples)
         # print(message)
         response = self.client.chat.completions.create(
             messages=message,
@@ -103,31 +145,24 @@ class OpenAIHandler(Handler):
         return response.choices[0].message.content
 
 class DeepseekHandler(OpenAIHandler):
-    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
-        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000,
+                 is_nested: bool=False, add_examples: bool = False) -> None:
+        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens, is_nested, add_examples)
         self.client = OpenAI(api_key=os.environ.get("DEEPSEEK_API_KEY", None),
                              base_url="https://api.deepseek.com/")
     
 
 class HFCausalLMHandler(Handler):
-    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
-        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000,
+                 is_nested: bool=False, add_examples: bool = False) -> None:
+        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens, is_nested, add_examples)
         
-        self.tok = AutoTokenizer.from_pretrained(path)
-        self.model = AutoModelForCausalLM.from_pretrained(path, device_map="auto")
+        self.tok = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
+        self.model = AutoModelForCausalLM.from_pretrained(path, device_map="auto", trust_remote_code=True)
         
     def inference(self, user_query: str, documents: List[str]) -> str:
         # This method is used to retrive model response for each model.
-        message = [
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT
-            },
-            {
-                "role": "user",
-                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents))
-            },
-        ]
+        message = self.format_message(user_query, documents, self.is_nested, self.add_examples)
         
         tokenized_chat = self.tok.apply_chat_template(message, tokenize=True, add_generation_prompt=True, return_tensors="pt")
         if self.temperature > 0:
@@ -146,8 +181,9 @@ class HFCausalLMHandler(Handler):
     
 
 class LoraCausalLMHandler(HFCausalLMHandler):
-    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000) -> None:
-        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens)
+    def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000,
+                 is_nested: bool=False, add_examples: bool = False) -> None:
+        super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens, is_nested, add_examples)
         self.base_model = self.model
         self.model = PeftModelForCausalLM.from_pretrained(self.base_model, adapter_path)
 
@@ -169,9 +205,11 @@ parser.add_argument('--path', type=str, default="/data/share/Qwen2-1.5B-Instruct
 parser.add_argument('--adapter_path', type=str, default="./checkpoint/Qwen2-1.5B-Instruct", help='adapter path')
 parser.add_argument('--task_name', type=str, default='', help='task name')
 parser.add_argument('--retriever', type=str, default='fake', help='retriever to use', choices=["chromadb", "fake"])
-parser.add_argument('--temperature', type=float, default=0.7, help='temperature for generation')
+parser.add_argument('--temperature', type=float, default=0.0, help='temperature for generation')
 parser.add_argument('--top_p', type=float, default=1, help='top_p for generation')
-parser.add_argument('--max_tokens', type=int, default=300, help='max tokens for generation')
+parser.add_argument('--max_tokens', type=int, default=500, help='max tokens for generation')
+parser.add_argument('--is_nested', action="store_true", help='use nested function calling or not')
+parser.add_argument('--add_examples', action="store_true", help='add examples in the prompt or not')
 arg = parser.parse_args()
 
 
@@ -287,7 +325,8 @@ def check_format(ans):
     return True
 
 def main():
-    handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path, arg.adapter_path, arg.temperature, arg.top_p, arg.max_tokens)
+    handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path, arg.adapter_path, arg.temperature, arg.top_p, arg.max_tokens,
+                                   arg.is_nested, arg.add_examples)
     
     all_instructions = []
     with open(arg.input, "r") as f:
@@ -310,7 +349,7 @@ def main():
         
         while retry_num > 0:
             response = handler.inference(query, documents)
-            print(f"response: {response}\n\n")
+            print(f"{Colors.OKGREEN}response: {response}{Colors.ENDC}\n\n")
             res = [call for call in extract_and_parse_jsons(response)]
             if res and all([check_format(ans) for ans in res]):
                 break
