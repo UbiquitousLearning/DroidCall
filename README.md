@@ -2,7 +2,62 @@
 
 ## 数据生成
 
-暂略
+### api定义
+
+在`api.py`中定义可供调用的`function`，包含每个`function`的描述信息，可参考已有的`api.py`。
+
+定义好`api.py`后，通过如下命令来提取可用函数的结构化信息
+```bash
+python extract.py --output path/to/output_file
+```
+若不指定`--output`，默认输出为`data/api.jsonl`，每一行内容形式如下
+```json
+{
+  "name": "ACTION_INSERT_EVENT",
+  "description": "Add a new event to the user's calendar.\n",
+  "arguments": {
+    "TITLE": {
+      "description": "The event title.",
+      "type": "str",
+      "required": true
+    },
+    "DESCRIPTION": {
+      "description": "The event description.",
+      "type": "str",
+      "required": true
+    },
+    ...
+  }
+}
+```
+
+### 准备xlam_function_calling数据集
+
+在生成数据时，需要采样一些示例样例给LLM作参考，以此激活LLM的ICL能力。自行编写示例工作量大，因此在此利用已有的工作生成的数据作为样例给到LLM。此处选择了APIGen生成的`xlam_function_calling_60k`数据集。在使用前，需要将其整理成本工作相同的格式，使用如下命令
+```bash
+python extract.py --handler xlam --input xlam_function_calling_60k --output data/processed_xlam.jsonl
+```
+这将在`data`下生成`processed_xlam.jsonl`数据文件，用于后续采样样例时使用。
+
+### 生成数据集
+准备好`api.jsonl`和`processed_xlam.jsonl`后可以用如下命令生成数据集
+```bash
+python gen_instructions.py --output data/instructions.jsonl \
+    --num_generate <num_data_per_function> \
+    --sample_num <num_sampler_for_icl> \
+    --model_class gpt \
+    --model_name gpt-4o \
+    --similarity_threshold 0.75
+```
+每个选项解释如下:
+- output: 输出数据文件位置
+- num_generate: 为每一个function产生多少条instruction数据
+- sample_num: 采样条数
+- model_class: 使用什么模型，目前有deepseek和gpt
+- model_name: 模型名称
+- similarity_threshold: 去除重复数据的阈值（rouge_score）
+
+
 
 ## evaluation
 

@@ -11,61 +11,13 @@ import argparse
 import random
 from peft import PeftModelForCausalLM
 from utils import Colors
+from utils.prompt import SYSTEM_PROMPT_FOR_FUNCTION_CALLING, NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
 
-SYSTEM_PROMPT = """
-You are an expert in composing functions. You are given a question and a set of possible functions. 
-Based on the question, you will need to make one or more function/tool calls to achieve the purpose. 
-If none of the function can be used, point it out. If the given question lacks the parameters required by the function,
-also point it out. You should only return the function call in tools call sections.
-"""
+SYSTEM_PROMPT = SYSTEM_PROMPT_FOR_FUNCTION_CALLING
 
-NEST_PROMT = """
-If an argument is a response from a previous function call, you can reference it in the following way like the argument value of arg2 in func3:
-{
-    "name": "func3",
-    "arguments": {
-        "arg1": "value1",
-        "arg2": "@func2",
-        ...
-    }
-}
-This means that the value of arg2 in func3 is the response from func2.
-"""
+NEST_PROMT = NESTED_CALLING_PROMT
 
-PROMPT_FOR_CHATMODEL = Template("""
-Here is a list of functions in JSON format that you can invoke:
-$functions
-
-Should you decide to return the function call(s), Put it in the format of 
-[
-    {
-        "name": "func1",
-        "arguments": {
-            "arg1": "value1",
-            "arg2": "value2",
-            ...
-        }
-    },
-    {
-        "name": "func2",
-        "arguments": {
-            "arg1": "value1",
-            "arg2": "value2",
-            ...
-        }
-    },
-    ...
-]
-
-$nest_prompt
-
-$example
-
-If there is a way to achieve the purpose using the given functions, please provide the function call(s) in the above format.
-REMEMBER TO ONLY RETURN THE FUNCTION CALLS LIKE THE EXAMPLE ABOVE, NO OTHER INFORMATION SHOULD BE RETURNED.
-
-Now my query is: $user_query
-""")
+PROMPT_FOR_CHATMODEL = Template(FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL)
 
 class Handler:
     model_name: str
@@ -216,63 +168,7 @@ arg = parser.parse_args()
 HANDLER = arg.handler # "openai"
 MODEL_NAME = arg.model_name # "gpt-4o-mini"
 
-class Retriever:
-    def retrieve(self, query: str, n_results: int) -> List[str]:
-        pass
-    
-
-class ChromaDBRetriever(Retriever):
-    def __init__(self, data_path: str) -> None:
-        super().__init__()
-        self.client = chromadb.PersistentClient(path="./chromaDB")
-        self.collection = self.client.get_or_create_collection('functions')
-    
-    def retrieve(self, query: str, n_results: int) -> List[str]:
-        results = self.collection.query(
-            query_texts=[query],
-            n_results=n_results,
-        )
-        docs = results['documents'][0]
-        documents = [
-            json.dumps(json.loads(doc), indent=2, ensure_ascii=False)
-            for doc in docs
-        ]
-        return documents
-
-
-class FakeRetriever(Retriever):
-    def __init__(self, data_path: str) -> None:
-        super().__init__()
-        self.query_to_functions = {}
-        with open(data_path, "r") as f:
-            for line in f:
-                item = json.loads(line)
-                self.query_to_functions[item["query"]] = [d["name"] for d in item["answers"]]
-                
-        self.api_info = {}
-        with open("data/api.jsonl", "r") as f:
-            for line in f:
-                item = json.loads(line)
-                self.api_info[item["name"]] = item
-    
-    def retrieve(self, query: str, n_results: int) -> List[str]:
-        # retrieve n actual intent and n_results - n fake intents
-        actual_functions = self.query_to_functions[query]
-        fake_functions = list(self.api_info.keys())
-        fake_functions = [f for f in fake_functions if f not in actual_functions]
-        if len(actual_functions) > n_results:
-            fake_functions = []
-        else:
-            fake_functions = random.sample(fake_functions, n_results - len(actual_functions))
-        
-        all_functions = actual_functions + fake_functions
-        documents = [
-            json.dumps(self.api_info[func], indent=2, ensure_ascii=False)
-            for func in all_functions
-        ]
-        
-        return documents
-    
+from utils.retriever import ChromaDBRetriever, FakeRetriever
 
 RETRIEVER_MAP = {
     "chromadb": ChromaDBRetriever,

@@ -8,6 +8,7 @@ import os
 from tqdm import tqdm
 from typing import List, Dict, Iterable
 import argparse
+from utils.prompt import SEED_GENERATION_PROMPT, DATA_GENERATION_PROMPT
 
 import logging
 
@@ -17,48 +18,9 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
-INIT_PROMPT = Template("""
-I need your help to generate some function calling datasets. I will provide you with a tool description, and you need to generate queries and corresponding answers based on this tool, i.e., the answers that call the tool to resolve the user's query. Here are my requirements:
+INIT_PROMPT = Template(SEED_GENERATION_PROMPT)
 
-1. For queries, try to use different vocabulary and syntax to ensure query diversity. Queries can be long or short, complex or concise. In short, try not to generate similar queries; I want to ensure query diversity.
-2. The language of the queries should be as diverse as possible. This means a query can be a command, a question, or a request with detailed descriptions, etc.
-3. The generated queries should cover all possible uses of the tool as much as possible, meaning the coverage of various parameters should be comprehensive, ensuring the tool can be used to complete various forms of work.
-4. The generated queries should be solvable using the given tools.
-5. For the queries you generate, you should provide answers using the tool, i.e., give the tool used and the values for each parameter.
-6. When providing parameters, if a parameter has required=False, you may omit its value.
-7. The query-answer pairs should cover as many possible uses of the tool as possible.
-8. The generated data must be presented in the format given in my example.
-9. The parameter values generated with function call generated must be values that can be inferred from the user's query; you cannot fabricate a value out of thin air.
-
-following are some examples:
-$examples
-
-Now I will give you a tool, and you help me generate 40 query-answer pairs.
-REMEMBER TO GENERATE THE RESULT IN JSON FORMAT LIKE THE EXAMPLE ABOVE
-tool: $tool
-""")
-
-GEN_PROMPT = Template("""
-I need your help to generate some function calling datasets. I will provide you with a tool description and some example data for you. 
-You need to generate queries and corresponding answers based on this tool, i.e., the answers that call the tool to resolve the user's query. Here are my requirements:
-
-1. For queries, try to use different vocabulary and syntax to ensure query diversity. Queries can be long or short, complex or concise. In short, try not to generate similar queries; I want to ensure query diversity.
-2. The language of the queries should be as diverse as possible. This means a query can be a command, a question, or a request with detailed descriptions, etc.
-3. The generated queries should cover all possible uses of the tool as much as possible, meaning the coverage of various parameters should be comprehensive, ensuring the tool can be used to complete various forms of work.
-4. The generated queries should be solvable using the given tools.
-5. For the queries you generate, you should provide answers using the tool, i.e., give the tool used and the values for each parameter.
-6. When providing parameters, if a parameter has required=False, it is not necessary to provide its value.
-7. The query-answer pairs should cover as many possible uses of the tool as possible.
-8. The generated data must be presented in the format given in my example.
-9. The parameter values generated with function call generated must be values that can be inferred from the user's query; you cannot fabricate a value out of thin air.
-
-following are tool I provided and some examples of query-answer pairs:
-tool: $tool
-examples: $examples
-
-Now please help me generate 40 query-answer pairs.
-REMEMBER TO GENERATE THE RESULT IN JSON FORMAT LIKE THE EXAMPLE ABOVE
-""")
+GEN_PROMPT = Template(DATA_GENERATION_PROMPT)
 
 
 def format_example(example):
@@ -87,12 +49,15 @@ def check_format(data):
     return True
 
 argparser = argparse.ArgumentParser()
+argparser.add_argument("--sample_file", type=str, default="data/function_call/processed_xlam.jsonl")
+argparser.add_argument("--api_file", type=str, default="data/api.jsonl")
+argparser.add_argument("--tokenizer_path", type=str, default="../xLLM/tokenizer_qwen2")
 argparser.add_argument("--output", type=str, default="data/instructions.jsonl")
-argparser.add_argument("--num_generate", type=int, default=300)
+argparser.add_argument("--num_generate", type=int, default=10)
 argparser.add_argument("--similarity_threshold", type=float, default=0.75)
 argparser.add_argument("--sample_num", type=int, default=8)
 argparser.add_argument("--model_class", type=str, default="gpt", choices=["gpt", "deepseek"])
-argparser.add_argument("--model_name", type=str, default="gpt-4o")
+argparser.add_argument("--model_name", type=str, default="gpt-4o-mini")
 args = argparser.parse_args()
 
 MODEL_CLASS_MAP = {
@@ -119,31 +84,32 @@ class FormatFilter(DataFilter):
 
 if __name__ == "__main__":
     all_examples = []
-    with open("data/processed_xlam.jsonl", "r") as f:
+    with open(args.sample_file, "r") as f:
         for line in f.readlines():
             example = json.loads(line)
-            if example["tools_num"] == 1 and example["answers_num"] == 1:
+            if example["tools_num"] == 1 and example["answers_num"] == 1: # simple call
                 all_examples.append(example)
         
-    path = "../xLLM/tokenizer_qwen2"
+    path = args.tokenizer_path
     tokenizer = AutoTokenizer.from_pretrained(path)
     tokenizer = HuggingFaceTokenizer(tokenizer)
     
     func2instructions = {}
-    with open(args.output) as f:
-        for l in f.readlines():
-            d = json.loads(l)
-            all_examples.append(d)
-            func_name = d["answers"][0]["name"]
-            if func_name not in func2instructions:
-                func2instructions[func_name] = []
-            func2instructions[func_name].append(d)
+    if os.path.exists(args.output):
+        with open(args.output) as f:
+            for l in f.readlines():
+                d = json.loads(l)
+                all_examples.append(d)
+                func_name = d["answers"][0]["name"]
+                if func_name not in func2instructions:
+                    func2instructions[func_name] = []
+                func2instructions[func_name].append(d)
 
     records = SimilarityRecord(tokenizer)
     client = OpenAI(api_key=MODEL_CLASS_MAP[args.model_class]["api_key"], base_url=MODEL_CLASS_MAP[args.model_class]["base_url"])
     generate_response = OpenAiGenerateResponse(client=client, model=args.model_name, system_prompt="")
 
-    with open("data/api.jsonl") as f:
+    with open(args.api_file) as f:
         all_tools = [json.loads(line) for line in f.readlines()]
     
     output_file = open(OUTPUT_FILE, "a")
@@ -192,11 +158,6 @@ if __name__ == "__main__":
             d["tools"] = [tool]
             output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
             output_file.flush()
-        
-        # for d in data[initial_num:]:
-        #     d["tools"] = [tool]
-        #     output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
-        # output_file.flush()
         
         records = SimilarityRecord(tokenizer)
         similarity_filter.change_record(records)
