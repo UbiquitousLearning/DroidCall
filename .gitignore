@@ -4,3 +4,5 @@ model
 checkpoint/
 wandb/
 chromaDB/
+results/
+data/

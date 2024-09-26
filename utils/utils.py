@@ -209,10 +209,12 @@ class HuggingfaceGenerateResponse(GenerateResponse):
         import torch
         with torch.no_grad():
             out = self.model.generate(**inp, **kwargs)
-        r = self.tokenizer.batch_decode(out, skip_special_tokens=True)
+        r = self.tokenizer.batch_decode(out)
         
         res = [None] * len(sentences)
         for i in range(len(sentences)):
+            # print(f"input: {sentences[i]}\n")
+            # print(f"output: {r[i]}\n\n\n")
             resp = {'text': r[i][len(sentences[i]):], 'finish_reason': 'length'}
             if out[i][-1] == self.tokenizer.eos_token_id or out[i][-1] == self.tokenizer.pad_token_id:
                 resp['finish_reason'] = 'stop'

@@ -15,13 +15,14 @@ class Planner:
         self.retriever = retriever
         self.is_nested = is_nested
         self.retriever_num = retriever_num
+        self.fewshot = fewshot
+        self.PROMPT = Template(FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL)
         
         if fewshot:
             assert examples_file is not None
             with open(examples_file) as f:
                 self.examples = [json.loads(line) for line in f]
                 
-            self.PROMPT = Template(FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL)
                 
     def format_user_message(self, query: str, docs: list[str], is_nested: bool = False):
         nest_prompt = NESTED_CALLING_PROMT if is_nested else ""
@@ -47,9 +48,12 @@ class Planner:
         return self.PROMPT.substitute(user_query=query, functions="\n".join(docs), nest_prompt=nest_prompt, example=example_text)
     
     
-    def plan(self, query: str, docs: list[str]):
+    def plan(self, query: str):
+        docs = self.retriever.retrieve(query, self.retriever_num)
         user_message = self.format_user_message(query, docs, self.is_nested)
-        response = self.llm("", [user_message])[0]["text"]
+        response = self.llm("", [user_message], max_new_tokens=200)[0]["text"]
+        # print(f"user: {user_message}")
+        # print(f"response: {response}")
         res = [call for call in extract_and_parse_jsons(response)]
         
         def filter(item):
@@ -60,8 +64,7 @@ class Planner:
         self.calls = [Call(name=call["name"], arguments=call["arguments"]) for call in res if filter(call)]
         
     def plan_and_execute(self, query: str)->tuple[bool, str]:
-        docs = self.retriever.retrieve(query, self.retriever_num)
-        self.plan(query, docs)
+        self.plan(query)
         
         for call in self.calls:
             result = self.executor.execute(call)

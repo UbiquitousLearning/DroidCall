@@ -12,7 +12,7 @@ class Retriever:
 class ChromaDBRetriever(Retriever):
     def __init__(self, data_path: str) -> None:
         super().__init__()
-        self.client = chromadb.PersistentClient(path="./chromaDB")
+        self.client = chromadb.PersistentClient(path=data_path)
         self.collection = self.client.get_or_create_collection('functions')
     
     def retrieve(self, query: str, n_results: int) -> List[str]:

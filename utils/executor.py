@@ -14,14 +14,18 @@ class Result:
     return_value: any = None
 
 class Executor:
-    def __init__(self, url: str):
+    def __init__(self, url: str, verbose: bool = False):
         self.url = url
         self.functions = {}
+        self.verbose = verbose
         
     def register(self, func):
         self.functions[func.__name__] = func
     
     def execute(self, call: Call)->Result:
+        if self.verbose:
+            print(f"executing call: {call}")
+            
         if call.name in self.functions:
             func = self.functions[call.name]
             try:
