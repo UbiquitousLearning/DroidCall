@@ -1,4 +1,3 @@
-from transformers.utils import get_json_schema
 import inspect
 import importlib
 from typing import Optional, Dict, Any

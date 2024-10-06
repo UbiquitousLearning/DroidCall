@@ -27,7 +27,10 @@ def format_example(example):
     tool = example["tools"][0]
     resp = {
         "query": example["query"],
-        "answers": example["answers"]
+        "answers": [
+            {"id": id, **ans}
+            for id, ans in enumerate(example["answers"])
+        ] 
     }
     return f'tool: {json.dumps(tool, indent=2, ensure_ascii=False)}\nresponse: {json.dumps(resp, indent=2)}'
 
@@ -53,11 +56,11 @@ argparser.add_argument("--sample_file", type=str, default="data/function_call/pr
 argparser.add_argument("--api_file", type=str, default="data/api.jsonl")
 argparser.add_argument("--tokenizer_path", type=str, default="../xLLM/tokenizer_qwen2")
 argparser.add_argument("--output", type=str, default="data/instructions.jsonl")
-argparser.add_argument("--num_generate", type=int, default=10)
+argparser.add_argument("--num_generate", type=int, default=300)
 argparser.add_argument("--similarity_threshold", type=float, default=0.75)
 argparser.add_argument("--sample_num", type=int, default=8)
 argparser.add_argument("--model_class", type=str, default="gpt", choices=["gpt", "deepseek"])
-argparser.add_argument("--model_name", type=str, default="gpt-4o-mini")
+argparser.add_argument("--model_name", type=str, default="gpt-4-turbo")
 args = argparser.parse_args()
 
 MODEL_CLASS_MAP = {
@@ -149,6 +152,10 @@ if __name__ == "__main__":
                     {k: v for k, v in sample.items() if k not in["tools"]}
                     for sample in samples
                 ]
+                for i in range(len(samples)):
+                    for id in range(len(samples[i]["answers"])):
+                        samples[i]["answers"][id]["id"] = id
+                
                 examples_text = "\n".join([json.dumps(sample, indent=2, ensure_ascii=False) for sample in samples])
                 return {"examples": examples_text, "tool": tool_text}
             

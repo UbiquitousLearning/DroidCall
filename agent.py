@@ -3,8 +3,6 @@ from utils.planner import Planner
 from utils.executor import Executor
 from utils import HuggingfaceGenerateResponse
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from transformers import Qwen2VLForConditionalGeneration
-
 
 path = "checkpoint/Qwen2-1.5B-instruct-mixed"
 
@@ -15,7 +13,7 @@ if __name__ == "__main__":
     llm = HuggingfaceGenerateResponse(tokenizer, model, "you are a helpful assistant")
     retriever = ChromaDBRetriever("./chromaDB")
     executor = Executor("http://10.129.7.240:8080", verbose=True)
-    planner = Planner(llm, executor, retriever, 4)
+    planner = Planner(llm, executor, retriever, 4, verbose=True)
     
     while True:
         query = input("query>>>")

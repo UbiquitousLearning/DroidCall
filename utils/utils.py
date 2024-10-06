@@ -488,7 +488,7 @@ class Sampler(ABC):
         pass
     
     @abstractmethod
-    def sample()->dict:
+    def sample(self)->dict:
         raise NotImplementedError
     
 class RandomListSampler(Sampler):
