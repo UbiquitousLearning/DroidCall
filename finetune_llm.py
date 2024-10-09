@@ -2,6 +2,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from datasets import load_dataset
 from trl import SFTConfig, SFTTrainer
 from peft import LoraConfig, get_peft_model
+from peft import PeftModel
 import torch
 import wandb
 import argparse
@@ -10,26 +11,37 @@ import random
 random.seed(42)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--model_path", type=str, default="/data/share/Qwen2-1.5B-Instruct", help="Path to the model")
-parser.add_argument("--model_name", type=str, default="Qwen2-1.5B-Instruct", help="Model name")
-parser.add_argument("--data_path", type=str, default="data/function_call/instruction_train.jsonl", help="Path to the data")
+parser.add_argument("--model_path", type=str, default="/data/share/Qwen2.5-1.5B-Instruct", help="Path to the model")
+parser.add_argument("--model_name", type=str, default="Qwen2.5-1.5B-Instruct", help="Model name")
+parser.add_argument("--data_path", type=str, default="data/finetune/DroidCall_train.jsonl", help="Path to the data")
 parser.add_argument("--eval_steps", type=int, default=200, help="Number of steps to evaluate")
 parser.add_argument("--use_wandb", action="store_true", help="use wandb to log or not")
+parser.add_argument("--lora_r", type=int, default=8, help="Lora r")
+parser.add_argument("--lora_alpha", type=int, default=32, help="Lora alpha")
+parser.add_argument("--lora_dropout", type=float, default=0.08, help="Lora dropout")
+parser.add_argument("--per_device_train_batch_size", type=int, default=6, help="Per device train batch size")
+parser.add_argument("--gradient_accumulation_steps", type=int, default=16, help="Gradient accumulation steps")
+parser.add_argument("--learning_rate", type=float, default=1.41e-5, help="Learning rate")
+parser.add_argument("--epochs", type=int, default=6, help="Number of epochs")
+parser.add_argument("--per_device_eval_batch_size", type=int, default=2, help="Per device eval batch size")
+parser.add_argument("--additional_lora", type=str, default="", help="merge additional lora adapter")
 arg = parser.parse_args()
 
 DATA_PATH = arg.data_path # "data/function_call/instruction_train.jsonl" # "data/function_call/glaive_train.jsonl" 
 MODEL_PATH = arg.model_path # "/data/share/Qwen2-1.5B-Instruct" # "model/HuggingFaceTB/SmolLM"
 OUTPUT_DIR = "checkpoint"
 
-LEARNING_RATE = 1.41e-5
-EPOCHS = 3
+LEARNING_RATE = arg.learning_rate
+EPOCHS = arg.epochs
 
-LORA_R = 4
-LORA_ALPHA = 32
-LORA_DROPOUT = 0.05
-PER_DEVICE_TRAIN_BATCH_SIZE = 1
-PER_DEVICE_EVAL_BATCH_SIZE = 2
-GRADIENT_ACCUMULATION_STEPS = 64
+LORA_R = arg.lora_r
+LORA_ALPHA = arg.lora_alpha
+LORA_DROPOUT = arg.lora_dropout
+PER_DEVICE_TRAIN_BATCH_SIZE = arg.per_device_train_batch_size
+PER_DEVICE_EVAL_BATCH_SIZE = arg.per_device_eval_batch_size
+GRADIENT_ACCUMULATION_STEPS = arg.gradient_accumulation_steps
+
+LORA_ADAPTER_PATH = arg.additional_lora
 
 if arg.use_wandb:
     # start a new wandb run to track this script
@@ -68,6 +80,11 @@ if __name__ == "__main__":
                                                 #  attn_implementation="flash_attention_2",
                                                  torch_dtype=torch.bfloat16)
     
+    if LORA_ADAPTER_PATH:
+        model = PeftModel.from_pretrained(model, LORA_ADAPTER_PATH)
+        model = model.merge_and_unload()
+        print(f"merge lora adapter: {LORA_ADAPTER_PATH}\nmodel:{model}")
+    
     peft_config = LoraConfig(
         r=LORA_R,
         lora_alpha=LORA_ALPHA,
@@ -88,7 +105,7 @@ if __name__ == "__main__":
         per_device_eval_batch_size=PER_DEVICE_EVAL_BATCH_SIZE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         num_train_epochs=EPOCHS,
-        logging_steps=1,
+        logging_steps=2,
         save_steps=arg.eval_steps,
         load_best_model_at_end=True,
         eval_strategy="steps",
@@ -103,6 +120,7 @@ if __name__ == "__main__":
         args=sft_config,
         # peft_config=peft_config,
         tokenizer=tokenizer,
+        max_seq_length=8192,
     )
     
     

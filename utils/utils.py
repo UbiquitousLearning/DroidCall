@@ -157,7 +157,7 @@ class OpenAiGenerateResponse(GenerateResponse):
                     {"role": "system", "content": self.system_prompt},
                     {"role": "user", "content": prompt}
                 ],
-                **kwargs
+                # **kwargs
             )
             resp = {'text': completion.choices[0].message.content, 'finish_reason': completion.choices[0].finish_reason}
             responses.append(resp)

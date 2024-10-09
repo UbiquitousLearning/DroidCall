@@ -1,26 +1,33 @@
 import json
 import random
+import argparse
+from itertools import chain
+
+parser = argparse.ArgumentParser(description='Process chat instructions')
+
+parser.add_argument("--files", nargs="+", action="append", help="Input files")
+parser.add_argument("--train_file", type=str, default="data/DroidCall_train.jsonl", help="Output train file")
+parser.add_argument("--test_file", type=str, default="data/DroidCall_test.jsonl", help="Output test file")
+parser.add_argument("--num_test", type=int, default=200, help="Number of test instructions")
+args = parser.parse_args()
 
 if __name__ == "__main__":
-    instructions = {}
-    with open("data/instructions.jsonl", "r") as f:
-        for line in f:
-            inst = json.loads(line)
-            func_name = inst["answers"][0]["name"]
-            if func_name not in instructions:
-                instructions[func_name] = []
-            instructions[func_name].append(inst)
+    files = list(chain(*args.files))
+    all_lines = []
+    for file in files:
+        with open(file, "r") as f:
+            all_lines.extend(f.readlines())
             
-    with open("data/instructions_train.jsonl", "w") as train_f, open("data/instructions_test.jsonl", "w") as test_f:
-        for func_name, insts in instructions.items():
-            random.shuffle(insts)
-            test_num = 8
-            train_insts = insts[:-test_num]
-            test_insts = insts[-test_num:]
+    # shuffle the lines
+    # and put the first num_test lines into test file
+    # and the rest into train file
+    random.shuffle(all_lines)
+    with open(args.train_file, "w") as f:
+        for line in all_lines[args.num_test:]:
+            f.write(line)
             
-            for inst in train_insts:
-                train_f.write(json.dumps(inst, ensure_ascii=False) + "\n")
+    with open(args.test_file, "w") as f:
+        for line in all_lines[:args.num_test]:
+            f.write(line)
             
-            for inst in test_insts:
-                test_f.write(json.dumps(inst, ensure_ascii=False) + "\n")
     

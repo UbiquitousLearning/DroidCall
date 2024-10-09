@@ -40,7 +40,7 @@ class Handler:
         if add_examples:
             sampled_examples = []
             if not hasattr(self, "examples"):
-                with open("data/instructions_train.jsonl", "r") as f:
+                with open("data/DroidCall_train.jsonl", "r") as f:
                     examples = [json.loads(line) for line in f]
                 self.examples = examples
             for doc in documents:
@@ -105,6 +105,10 @@ class DeepseekHandler(OpenAIHandler):
     
 
 class HFCausalLMHandler(Handler):
+    total_tokens = 0
+    input_tokens = 0
+    inference_count = 0
+    
     def __init__(self, model_name, path, adapter_path, temperature=0.7, top_p=1, max_tokens=1000,
                  is_nested: bool=False, add_examples: bool = False) -> None:
         super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens, is_nested, add_examples)
@@ -117,6 +121,9 @@ class HFCausalLMHandler(Handler):
         message = self.format_message(user_query, documents, self.is_nested, self.add_examples)
         
         tokenized_chat = self.tok.apply_chat_template(message, tokenize=True, add_generation_prompt=True, return_tensors="pt")
+        # count input tokens
+        self.input_tokens += tokenized_chat.size(1)
+        
         if self.temperature > 0:
             outputs = self.model.generate(tokenized_chat.to(self.model.device), 
                                         max_new_tokens=self.max_tokens, 
@@ -127,6 +134,9 @@ class HFCausalLMHandler(Handler):
                                         max_new_tokens=self.max_tokens, 
                                         do_sample=False)
         text = self.tok.decode(outputs[0])
+        # count total tokens
+        self.total_tokens += outputs.size(1)
+        self.inference_count += 1
         prefix = self.tok.apply_chat_template(message, tokenize=False, add_generation_prompt=True)
         response = text[len(prefix):]
         return response
@@ -148,7 +158,7 @@ HANDLER_MAP = {
 }
 
 parser = argparse.ArgumentParser(description='Generate solution for the task')
-parser.add_argument('--input', type=str, default='./data/instructions_test.jsonl', help='Path to the input file')
+parser.add_argument('--input', type=str, default='./data/DroidCall_test.jsonl', help='Path to the input file')
 parser.add_argument('--retrieve_doc_num', type=int, default=2, help='Number of documents to retrieve')
 parser.add_argument('--model_name', type=str, default='gpt-4o-mini', help='model name')
 parser.add_argument('--handler', type=str, default='openai', help='Handler to use for inference',
@@ -257,6 +267,9 @@ def main():
         output_file.flush()
         
     output_file.close()
+    if isinstance(handler, HFCausalLMHandler):
+        print(f"Average tokens: {handler.total_tokens / handler.inference_count}")
+        print(f"Average input tokens: {handler.input_tokens / handler.inference_count}")
 
 
 if __name__ == '__main__':

@@ -61,7 +61,7 @@ argparser.add_argument("--num_generate", type=int, default=80)
 argparser.add_argument("--similarity_threshold", type=float, default=0.75)
 argparser.add_argument("--sample_num", type=int, default=8)
 argparser.add_argument("--model_class", type=str, default="gpt", choices=["gpt", "deepseek"])
-argparser.add_argument("--model_name", type=str, default="gpt-4o-mini")
+argparser.add_argument("--model_name", type=str, default="gpt-4-turbo")
 args = argparser.parse_args()
 
 MODEL_CLASS_MAP = {
@@ -142,6 +142,14 @@ class ApiSampler(Sampler):
         names = random.choice(self.combinations)
         return [api for api in self.apis if api["name"] in names]
     
+    def sample_apis(self)->list:
+        # 30% to sample_preset_apis
+        # 70% to random_sample_apis
+        if random.random() < 0.30:
+            self.last_apis = self.sample_preset_apis()
+        else:
+            self.last_apis = self.random_sample_apis()
+    
     @staticmethod
     def get_keys(apis: list)->str:
         sorted_api_names = sorted([api["name"] for api in apis])
@@ -151,17 +159,7 @@ class ApiSampler(Sampler):
         self.in_seed_generation_state = True
     
     def sample(self)->dict:
-        if self.in_seed_generation_state:
-            # 30% to sample_preset_apis
-            # 70% to random_sample_apis
-            if random.random() < 0.30:
-                apis = self.sample_preset_apis()
-            else:
-                apis = self.random_sample_apis()
-            self.last_apis = apis
-        else:
-            apis = self.last_apis
-        
+        apis = self.last_apis
         
         tools_text = json.dumps(apis, indent=2, ensure_ascii=False)
         if self.in_seed_generation_state:
@@ -200,11 +198,13 @@ if __name__ == "__main__":
     collector = LLMDataCollector(INIT_PROMPT, sampler, filters,
                                      generate_response=generate_response, verbose=True)
     
-    for i in range(1):
+    for i in range(100):
         # this is initial collection
-        sampler.seed_generation()
         num = 0
-        while num <= 0:
+        sampler.sample_apis()
+        collector.switch(INIT_PROMPT)
+        while num <= 8:
+            sampler.seed_generation()
             for d in collector.collect(NUM_GENERATE, "init collection", num_generated=0, once=True):
                 t = copy.deepcopy(d)
                 t["tools"] = sampler.last_apis
