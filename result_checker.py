@@ -175,16 +175,16 @@ def main():
     else:
         acc = {}
     
-    acc[f"{arg.model_name}_{arg.task_name}"] = {
+    if arg.model_name not in acc:
+        acc[arg.model_name] = {}
+    
+    acc[arg.model_name][arg.task_name] = {
         "soft_accuracy": accuracy,
         "accuracy": total_correct_accuracy,
     }
     
     with open(arg.output, "w") as fout:
         json.dump(acc, fout, indent=4)
-    
-        
-    
 
 
 if __name__ == "__main__":
