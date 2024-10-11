@@ -63,6 +63,10 @@ if arg.use_wandb:
             "gradient_accumulation_steps": GRADIENT_ACCUMULATION_STEPS,
         }
     )
+    
+TARGET_MODULES_MAP = {
+    "minicpm": ["q_a_proj", "q_b_proj", "kv_a_proj_with_mqa", "kv_b_proj"]
+}
 
 if __name__ == "__main__":
     dataset = load_dataset("json", data_files=DATA_PATH)["train"]
@@ -73,17 +77,27 @@ if __name__ == "__main__":
     eval_dataset = dataset.select(range(train_size, train_size + eval_size))
     # print(dataset)
     
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH)
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, 
                                                  device_map="auto", 
-                                                #  attn_implementation="flash_attention_2",
-                                                 torch_dtype=torch.bfloat16)
+                                                 attn_implementation="flash_attention_2",
+                                                 torch_dtype=torch.bfloat16,
+                                                 trust_remote_code=True)
+    
+    print(f"model: {model}")
     
     if LORA_ADAPTER_PATH:
         model = PeftModel.from_pretrained(model, LORA_ADAPTER_PATH)
         model = model.merge_and_unload()
         print(f"merge lora adapter: {LORA_ADAPTER_PATH}\nmodel:{model}")
+    
+    target_modules = None
+    
+    for k, v in TARGET_MODULES_MAP.items():
+        if k in arg.model_name.lower():
+            target_modules = v
+            break
     
     peft_config = LoraConfig(
         r=LORA_R,
@@ -91,9 +105,12 @@ if __name__ == "__main__":
         lora_dropout=LORA_DROPOUT,
         bias="none",
         task_type="CAUSAL_LM",
+        target_modules=target_modules,
     )
     
     peft_model = get_peft_model(model, peft_config)
+    
+    print(f"target modules: {peft_model.targeted_module_names}")
     
     sft_config = SFTConfig(
         output_dir=f"{OUTPUT_DIR}/{arg.model_name}",

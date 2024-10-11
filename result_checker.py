@@ -104,7 +104,8 @@ def check_result(resp, answer, apis_info):
     correct_num = 0
     total_num = 0
     # check if answers is in response
-    resp_map = {item.get("name", ""): item for item in resp if isinstance(item, dict)}
+    resp_map = {item.get("name", ""): item for item in resp if isinstance(item, dict) 
+                and isinstance(item.get("name", ""), str)}
     for ans in answer:
         func_name = ans["name"]
         api_info = apis_info[func_name]
@@ -185,6 +186,23 @@ def main():
     
     with open(arg.output, "w") as fout:
         json.dump(acc, fout, indent=4)
+        
+    update("accuracy", arg.model_name, arg.task_name, total_correct_accuracy)
+    update("soft_accuracy", arg.model_name, arg.task_name, accuracy)
+
+import requests
+
+def update(table: str, model: str, task: str, value: float):
+    base_url = "http://10.161.28.28:9898/"
+    url = f"{base_url}/add"
+    payload = {
+        'table': table,
+        'model': model,
+        'task_name': task,
+        'value': value
+    }
+    response = requests.post(url, json=payload)
+    return response.json()
 
 
 if __name__ == "__main__":

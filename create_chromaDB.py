@@ -21,8 +21,8 @@ with open("data/api.jsonl", "r") as f:
         )
 
 results = collection.query(
-    query_texts=["I want to set an alarm at 7:30"], # Chroma will embed this for you
-    n_results=2
+    query_texts=["I want to check Alice's phone"], # Chroma will embed this for you
+    n_results=4
 )
 
 for doc in results["documents"][0]:

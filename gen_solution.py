@@ -1,4 +1,4 @@
-import chromadb
+import torch
 import json
 from typing import List
 from openai import OpenAI
@@ -114,11 +114,15 @@ class HFCausalLMHandler(Handler):
         super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens, is_nested, add_examples)
         
         self.tok = AutoTokenizer.from_pretrained(path, trust_remote_code=True)
-        self.model = AutoModelForCausalLM.from_pretrained(path, device_map="auto", trust_remote_code=True)
+        self.model = AutoModelForCausalLM.from_pretrained(path, device_map="auto", trust_remote_code=True,
+                                                          torch_dtype=torch.bfloat16)
         
     def inference(self, user_query: str, documents: List[str]) -> str:
         # This method is used to retrive model response for each model.
         message = self.format_message(user_query, documents, self.is_nested, self.add_examples)
+        
+        if "gemma-2-2b-it" in self.model_name:
+            message = message[1:] # gemmma-2-2b-it not support system prompt
         
         tokenized_chat = self.tok.apply_chat_template(message, tokenize=True, add_generation_prompt=True, return_tensors="pt")
         # count input tokens

@@ -2,11 +2,62 @@ import json
 from typing import List
 import chromadb
 import random
+from utils import GenerateResponse
+from string import Template
+from utils import get_json_obj
 
+
+RETRIEVE_PROMPT = Template("""
+You are supposed to help me find the relevant APIs for the given query.
+I will give you a series of API names and descriptions with a query, you shoul help me
+pick the top $n_results APIs that are relevant to the query.
+
+Below is the APIs:
+$apis
+
+The query is:
+$query
+
+You should give me the top $n_results APIs that are relevant to the query in a json list like ["api1", "api2", ...]
+REMEMBER TO STRICTLY FOLLOW THE FORMAT, AND GIVE THE CORRECT API NAME.
+ALSO REMEMBER YOU SHOULD GIVE $n_results APIs BASE ON THE RELEVANCE.
+""")
 
 class Retriever:
     def retrieve(self, query: str, n_results: int) -> List[str]:
         pass
+    
+class LLMRetriever(Retriever):
+    def __init__(self, data_path: str, llm: GenerateResponse):
+        self.llm = llm
+        self.apis = {}
+        with open(data_path, "r") as f:
+            for line in f:
+                item = json.loads(line)
+                self.apis[item["name"]] = item
+        
+        self.apis_text = "\n".join(
+            [f"name: {api['name']}\ndescription: {api['description'].strip().split("\n")[0]}\n\n" for api in self.apis.values()]
+        )
+        
+        print(self.apis_text)    
+    
+        
+    def retrieve(self, query: str, n_results: int) -> List[str]:
+        user_message = RETRIEVE_PROMPT.substitute(
+            apis=self.apis_text,
+            query=query,
+            n_results=n_results,
+        )
+        
+        resp = self.llm('', [user_message], max_new_tokens=500)[0]
+        print(f"response: {resp["text"]}\n")
+        apis = get_json_obj(resp["text"])
+        documents = [
+            json.dumps(self.apis[name]) for name in apis if name in self.apis
+        ]
+        return documents
+                
     
 
 class ChromaDBRetriever(Retriever):
