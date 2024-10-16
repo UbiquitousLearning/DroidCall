@@ -189,41 +189,6 @@ RETRIEVER_MAP = {
     "fake": FakeRetriever
 }
 
-def test_retriever_accuracy():
-    print(f"Testing retriever({arg.retriever}) accuracy")
-    retriever = RETRIEVER_MAP[arg.retriever](arg.input)
-    all_items = []
-    with open(arg.input, "r") as f:
-        for line in f:
-            item = json.loads(line)
-            all_items.append(item)
-    
-    data = {
-        "n_docs": [],
-        "accuracy": []
-    }
-    
-    max_n_docs = 10
-    for n_doc in range(1, max_n_docs + 1):
-        correct = 0
-        for item in all_items:
-            query = item["query"]
-            actual_functions = item["answers"]
-            
-            documents = retriever.retrieve(query, n_doc)
-            documents_function_names = [json.loads(doc)["name"] for doc in documents]
-            # check if all actual functions are in the retrieved documents
-            if all([f["name"] in documents_function_names for f in actual_functions]):
-                correct += 1
-        
-        accuracy = correct / len(all_items)
-        print(f"Accuracy for {n_doc} documents: {accuracy}")
-        data["n_docs"].append(n_doc)
-        data["accuracy"].append(accuracy)
-        
-    import pandas as pd
-    df = pd.DataFrame(data)
-    print(df)
             
 def check_format(ans):
     if not isinstance(ans, dict):

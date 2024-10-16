@@ -135,6 +135,10 @@ def xlam_extract(input: str)->Generator[dict[str, Any], None, None]:
     for item in data:
         query = item["query"]
         answers = json.loads(item["answers"])
+        for i in range(len(answers)):
+            answers[i]["id"] = i
+        # print(f"answers: {answers}")
+        
         tools = json.loads(item["tools"])
         
         yield {
@@ -161,7 +165,8 @@ if __name__ == "__main__":
     extractor = HANDLER_MAP[args.handler]
     with open(args.output, "a") as f:
         for api in extractor(args.input):
-            f.write(json.dumps(api) + "\n")
+            # print(f"{api["answers"]}")
+            f.write(json.dumps(api, ensure_ascii=False) + "\n")
     
     # signature = inspect.signature(ACTION_EDIT_CONTACT)
     # print(signature)

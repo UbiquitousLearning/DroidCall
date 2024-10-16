@@ -9,6 +9,7 @@ parser.add_argument("--api", type=str, default="./data/annotated_api.jsonl", hel
 parser.add_argument("--output", type=str, default="./results/accuracy.json", help="Path to the output accuracy file")
 parser.add_argument("--model_name", type=str, default="openai_gpt-4o-mini", help="Model name")
 parser.add_argument("--task_name", type=str, default="", help="Task name")
+parser.add_argument("--table_prefix", type=str, default="", help="Table prefix")
 arg = parser.parse_args()
 
 def semantic_compare(a: str, b: str, threshold: float = 0.85):
@@ -187,8 +188,8 @@ def main():
     with open(arg.output, "w") as fout:
         json.dump(acc, fout, indent=4)
         
-    update("accuracy", arg.model_name, arg.task_name, total_correct_accuracy)
-    update("soft_accuracy", arg.model_name, arg.task_name, accuracy)
+    update(f"{arg.table_prefix}-accuracy", arg.model_name, arg.task_name, total_correct_accuracy)
+    update(f"{arg.table_prefix}-soft_accuracy", arg.model_name, arg.task_name, accuracy)
 
 import requests
 

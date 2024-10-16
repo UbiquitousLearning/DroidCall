@@ -40,7 +40,7 @@ class LLMRetriever(Retriever):
             [f"name: {api['name']}\ndescription: {api['description'].strip().split("\n")[0]}\n\n" for api in self.apis.values()]
         )
         
-        print(self.apis_text)    
+        # print(self.apis_text)    
     
         
     def retrieve(self, query: str, n_results: int) -> List[str]:
@@ -51,7 +51,7 @@ class LLMRetriever(Retriever):
         )
         
         resp = self.llm('', [user_message], max_new_tokens=500)[0]
-        print(f"response: {resp["text"]}\n")
+        # print(f"response: {resp["text"]}\n")
         apis = get_json_obj(resp["text"])
         documents = [
             json.dumps(self.apis[name]) for name in apis if name in self.apis

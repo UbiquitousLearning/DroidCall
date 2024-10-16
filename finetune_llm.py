@@ -19,11 +19,11 @@ parser.add_argument("--use_wandb", action="store_true", help="use wandb to log o
 parser.add_argument("--lora_r", type=int, default=8, help="Lora r")
 parser.add_argument("--lora_alpha", type=int, default=32, help="Lora alpha")
 parser.add_argument("--lora_dropout", type=float, default=0.08, help="Lora dropout")
-parser.add_argument("--per_device_train_batch_size", type=int, default=6, help="Per device train batch size")
-parser.add_argument("--gradient_accumulation_steps", type=int, default=16, help="Gradient accumulation steps")
+parser.add_argument("--per_device_train_batch_size", type=int, default=2, help="Per device train batch size")
+parser.add_argument("--gradient_accumulation_steps", type=int, default=32, help="Gradient accumulation steps")
 parser.add_argument("--learning_rate", type=float, default=1.41e-5, help="Learning rate")
-parser.add_argument("--epochs", type=int, default=6, help="Number of epochs")
-parser.add_argument("--per_device_eval_batch_size", type=int, default=2, help="Per device eval batch size")
+parser.add_argument("--epochs", type=int, default=3, help="Number of epochs")
+parser.add_argument("--per_device_eval_batch_size", type=int, default=1, help="Per device eval batch size")
 parser.add_argument("--additional_lora", type=str, default="", help="merge additional lora adapter")
 arg = parser.parse_args()
 
@@ -65,23 +65,46 @@ if arg.use_wandb:
     )
     
 TARGET_MODULES_MAP = {
-    "minicpm": ["q_a_proj", "q_b_proj", "kv_a_proj_with_mqa", "kv_b_proj"]
+    "minicpm": ["q_a_proj", "q_b_proj", "kv_a_proj_with_mqa", "kv_b_proj"],
+    "phi-3.5": ["qkv_proj", "gate_up_proj", "down_proj"],
+    "gemma-2-2b-it": "all-linear",
 }
+
+
+def remove_system_prompt(example):
+    messages = example["messages"]
+    messages = [m for m in messages if m["role"] != "system"]
+    return {"messages": messages}
+
+PROCESS_MAP = {
+    "gemma-2-2b-it": remove_system_prompt,
+}
+
+ATTN_MAP = {
+    "gemma-2-2b-it": "eager",
+}
+
 
 if __name__ == "__main__":
     dataset = load_dataset("json", data_files=DATA_PATH)["train"]
+    
     train_size = int(0.96 * len(dataset))  
     eval_size = len(dataset) - train_size
 
     train_dataset = dataset.select(range(train_size))
     eval_dataset = dataset.select(range(train_size, train_size + eval_size))
-    # print(dataset)
-    
+    lower_name = arg.model_name.lower()
+    for name in PROCESS_MAP:
+        if name in lower_name:
+            train_dataset = train_dataset.map(PROCESS_MAP[name])
+            eval_dataset = eval_dataset.map(PROCESS_MAP[name])
+            break
+        
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, 
                                                  device_map="auto", 
-                                                 attn_implementation="flash_attention_2",
+                                                 attn_implementation=ATTN_MAP.get(lower_name, "flash_attention_2"),
                                                  torch_dtype=torch.bfloat16,
                                                  trust_remote_code=True)
     
