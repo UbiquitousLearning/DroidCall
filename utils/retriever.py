@@ -4,7 +4,7 @@ import chromadb
 import random
 from utils import GenerateResponse
 from string import Template
-from utils import get_json_obj
+from utils.extract import get_json_obj
 
 
 RETRIEVE_PROMPT = Template("""

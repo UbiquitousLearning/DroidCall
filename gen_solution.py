@@ -5,17 +5,18 @@ from openai import OpenAI
 from string import Template
 from tqdm import tqdm
 import os
-from utils import get_json_obj, extract_and_parse_jsons
+from utils.extract import extract_and_parse_jsons
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import argparse
 import random
 from peft import PeftModelForCausalLM
 from utils import Colors
-from utils.prompt import SYSTEM_PROMPT_FOR_FUNCTION_CALLING, NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
+from utils.extract import get_json_obj
+from utils.prompt import SYSTEM_PROMPT_FOR_FUNCTION_CALLING, JSON_NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL, JSON_CALL_FORMAT
 
 SYSTEM_PROMPT = SYSTEM_PROMPT_FOR_FUNCTION_CALLING
 
-NEST_PROMT = NESTED_CALLING_PROMT
+NEST_PROMT = JSON_NESTED_CALLING_PROMT
 
 PROMPT_FOR_CHATMODEL = Template(FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL)
 
@@ -65,7 +66,7 @@ class Handler:
             },
             {
                 "role": "user",
-                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents), nest_prompt=nest_prompt, example=example_text)
+                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents), nest_prompt=nest_prompt, example=example_text, call_format=JSON_CALL_FORMAT)
             },
         ]
         

@@ -1,5 +1,5 @@
 from string import Template
-from utils import get_json_obj
+from utils.extract import get_json_obj
 import json
 from openai import OpenAI
 from tqdm import tqdm

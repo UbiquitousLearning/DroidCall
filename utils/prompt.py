@@ -217,7 +217,7 @@ If none of the function can be used, point it out. If the given question lacks t
 also point it out. Remember you should not use functions that is not suitable for the query and only return the function call in tools call sections. 
 """
 
-NESTED_CALLING_PROMT = """
+JSON_NESTED_CALLING_PROMT = """
 If an argument is a response from a previous function call, you can reference it in the following way like the argument value of arg2 in func1:
 [
     {
@@ -240,14 +240,18 @@ If an argument is a response from a previous function call, you can reference it
     },
     ...
 ]
-This means that the value of arg2 in func1 is the response from func0 (#0 means the response from the function call with id 0).
+This means that the value of arg2 in func1 is the return value from func0 (#0 means the response from the function call with id 0).
 """
 
-FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL = """
-Here is a list of functions in JSON format that you can invoke:
-$functions
+CODE_NESTED_CALLING_PROMPT = """
+You can do nested function calling in the following way:
+result1 = func0(arg1="value1", arg2="value2", ...)
+result2 = func1(arg1="value1", arg2=result1, ...)
+...
+This means that the value of arg2 in func1 is the return value from func0.
+"""
 
-Should you decide to return the function call(s), Put it in the format of 
+JSON_CALL_FORMAT = """
 [
     {
       "id": 0,
@@ -269,6 +273,20 @@ Should you decide to return the function call(s), Put it in the format of
     },
     ...
 ]
+"""
+
+CODE_CALL_FORMAT = """
+result1 = func0(arg1="value1", arg2="value2", ...)
+result2 = func1(arg1="value1", arg2=result1, ...)
+...
+"""
+
+FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL = """
+Here is a list of functions that you can invoke:
+$functions
+
+Should you decide to return the function call(s), Put it in the format of 
+$call_format
 
 $nest_prompt
 

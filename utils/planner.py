@@ -1,7 +1,8 @@
-from .utils import GenerateResponse, extract_and_parse_jsons
+from .extract import extract_and_parse_jsons
+from .utils import GenerateResponse
 from .executor import Executor, Call, Result
 import json
-from .prompt import NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
+from .prompt import JSON_NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
 from string import Template
 from .retriever import Retriever
     
@@ -26,7 +27,7 @@ class Planner:
                 
                 
     def format_user_message(self, query: str, docs: list[str], is_nested: bool = False):
-        nest_prompt = NESTED_CALLING_PROMT if is_nested else ""
+        nest_prompt = JSON_NESTED_CALLING_PROMT if is_nested else ""
         example_text = ""
         if self.fewshot:
             sampled_examples = []

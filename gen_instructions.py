@@ -1,6 +1,6 @@
 from string import Template
 import json
-from utils import SimilarityRecord, OpenAiGenerateResponse, HuggingFaceTokenizer, extract_and_parse_jsons
+from utils import SimilarityRecord, OpenAiGenerateResponse, HuggingFaceTokenizer
 from transformers import AutoTokenizer
 import random
 from openai import OpenAI
@@ -8,6 +8,7 @@ import os
 from tqdm import tqdm
 from typing import List, Dict, Iterable
 import argparse
+from utils.extract import extract_and_parse_jsons
 from utils.prompt import SEED_GENERATION_PROMPT, DATA_GENERATION_PROMPT
 
 import logging

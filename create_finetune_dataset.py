@@ -3,11 +3,12 @@ from string import Template
 from transformers import AutoTokenizer
 import argparse
 import os
+from utils.formatter import MessageTemplate
 
-from utils.prompt import SYSTEM_PROMPT_FOR_FUNCTION_CALLING, NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
+from utils.prompt import SYSTEM_PROMPT_FOR_FUNCTION_CALLING, JSON_NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
 
 SYSTEM_PROMPT = SYSTEM_PROMPT_FOR_FUNCTION_CALLING
-NEST_PROMPT = NESTED_CALLING_PROMT
+NEST_PROMPT = JSON_NESTED_CALLING_PROMT
 PROMPT_FOR_CHATMODEL = Template(FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL)
 
 GLAIVE_SYSTEM_PROMPT = Template("""
@@ -37,37 +38,25 @@ def format_glaive_instruction(instruction):
         
     return chat
 
-def format_xlam_instruction(instruction):
-    functions = "\n".join([json.dumps(func, indent=2, ensure_ascii=False) for func in instruction["tools"]])
-    user_message = PROMPT_FOR_CHATMODEL.substitute(
-        user_query=instruction['query'],
-        functions=functions,
-        nest_prompt=NEST_PROMPT,
-        example=""
-    )
-    chat = [
-        {
-            "role": "system",
-            "content": SYSTEM_PROMPT
-        },
-        {
-            "role": "user",
-            "content": user_message
-        },
-        {
-            "role": "assistant",
-            "content": format_assistant_response(instruction['answers'])
-        }
-    ]
-    return chat
+def xlam_wrapper(type:str="json", **kwargs):
+    message_template = MessageTemplate.get_message_template(type)
+    sep_start = kwargs.get("sep_start", "")
+    sep_end = kwargs.get("sep_end", "")
+    message_template.set_function_call_sep(sep_start, sep_end)
+    
+    def format_xlam_instruction(instruction):
+        chat = message_template.format(instruction)["message"]
+        return chat
+    
+    return format_xlam_instruction
         
 HANDLER_MAP = {
-    "xlam": format_xlam_instruction,
+    "xlam": xlam_wrapper("code", sep_start="<tool_call>", sep_end="</tool_call>"),
     "glaive": format_glaive_instruction,
-    "DroidCall": format_xlam_instruction
+    "DroidCall": xlam_wrapper("code", sep_start="<tool_call>", sep_end="</tool_call>"),
 }
 
-def process_instructions(input_file, output_file, format_instruction=format_xlam_instruction, tokenizer_path=None):
+def process_instructions(input_file, output_file, format_instruction, tokenizer_path=None):
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path) if tokenizer_path else None
     with open(input_file, 'r', encoding='utf-8') as infile, open(output_file, 'w', encoding='utf-8') as outfile:
         instructions = []
