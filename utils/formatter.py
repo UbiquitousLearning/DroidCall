@@ -249,7 +249,21 @@ class MessageTemplate:
             self.user_formatter.example.call_formatter.set_sep(sep_start, sep_end)
         
         
-    def format(self, data: Dict[str, str])->Dict[str, str]:
+    def format(self, data: Dict[str, str], no_assistant: bool=False)->Dict[str, str]:
+        if no_assistant:
+            return {
+                "message": [
+                    {
+                        "role": "system",
+                        "content": self.system_formatter.format(**data)
+                    },
+                    {
+                        "role": "user",
+                        "content": self.user_formatter.format(**data)
+                    }
+                ]
+            }
+            
         return {
             "message": [
                 {

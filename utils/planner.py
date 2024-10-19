@@ -2,7 +2,7 @@ from .extract import extract_and_parse_jsons
 from .utils import GenerateResponse
 from .executor import Executor, Call, Result
 import json
-from .prompt import JSON_NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
+from .prompt import JSON_NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL, JSON_CALL_FORMAT
 from string import Template
 from .retriever import Retriever
     
@@ -47,7 +47,7 @@ class Planner:
             example_text =  "Here is some examples:\n" + "\n".join(f"query: {example["query"]} \nanwsers: {json.dumps(example["answers"], ensure_ascii=False, indent=2)}" 
                                                                    for example in sampled_examples)
 
-        return self.PROMPT.substitute(user_query=query, functions="\n".join(docs), nest_prompt=nest_prompt, example=example_text)
+        return self.PROMPT.substitute(user_query=query, functions="\n".join(docs), nest_prompt=nest_prompt, example=example_text, call_format=JSON_CALL_FORMAT)
     
     
     def plan(self, query: str):
@@ -59,7 +59,7 @@ class Planner:
         user_message = self.format_user_message(query, docs, self.is_nested)
         response = self.llm("", [user_message], max_new_tokens=200, do_sample=False)[0]["text"]
         # print(f"user: {user_message}")
-        # print(f"response: {response}")
+        print(f"{Colors.OKBLUE}response: {response}\n{Colors.ENDC}")
         res = [call for call in extract_and_parse_jsons(response)]
         
         def filter(item):

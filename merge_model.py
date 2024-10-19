@@ -1,5 +1,6 @@
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from peft import PeftModel
+import torch
 import argparse
 
 parser = argparse.ArgumentParser()
@@ -15,10 +16,11 @@ if __name__ == "__main__":
     # merge them into a new model
     # save the new model to the output path
     
-    tokenizer = AutoTokenizer.from_pretrained(args.base_model)
+    tokenizer = AutoTokenizer.from_pretrained(args.base_model, trust_remote_code=True)
     tokenizer.save_pretrained(args.output)
-    base_model = AutoModelForCausalLM.from_pretrained(args.base_model)
+    base_model = AutoModelForCausalLM.from_pretrained(args.base_model, trust_remote_code=True, torch_dtype=torch.bfloat16)
     model = PeftModel.from_pretrained(base_model, args.adapter)
     merge_model = model.merge_and_unload()
+    print(f"merge model: {merge_model}")
     merge_model.save_pretrained(args.output)
     

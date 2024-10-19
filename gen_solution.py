@@ -13,6 +13,7 @@ from peft import PeftModelForCausalLM
 from utils import Colors
 from utils.extract import get_json_obj
 from utils.prompt import SYSTEM_PROMPT_FOR_FUNCTION_CALLING, JSON_NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL, JSON_CALL_FORMAT
+from utils.formatter import *
 
 SYSTEM_PROMPT = SYSTEM_PROMPT_FOR_FUNCTION_CALLING
 
@@ -33,31 +34,75 @@ class Handler:
         self.adapter_path = adapter_path
         self.is_nested = is_nested
         self.add_examples = add_examples
+        self.format_type = "json"
+        self.sep_start = ""
+        self.sep_end = ""
+    
+    def set_format_type(self, format_type: str):
+        self.format_type = format_type
+        
+    def set_sep(self, sep_start: str, sep_end: str):
+        self.sep_start = sep_start
+        self.sep_end = sep_end
+    
+    _CALL_FORMAT_MAP = {
+        "json": ConstantCallingFormatter(JSON_CALL_FORMAT),
+        "code": ConstantCallingFormatter(CODE_CALL_FORMAT)
+    }
+    
+    _NEST_CALL_MAP = {
+        "json": ConstantFormatter(JSON_NESTED_CALLING_PROMT),
+        "code": ConstantFormatter(CODE_NESTED_CALLING_PROMPT)
+    }
+    
+    _FUNCTION_CALL_MAP = {
+        "json": JsonFunctionCallingFormatter(),
+        "code": CodeFunctionCallingFormatter()
+    }
         
     def format_message(self, user_query: str, documents: List[str], is_nested: bool=False, 
                        add_examples: bool = False) -> str:
-        nest_prompt = NEST_PROMT if is_nested else ""
-        example_text = ""
-        if add_examples:
-            sampled_examples = []
-            if not hasattr(self, "examples"):
-                with open("data/DroidCall_train.jsonl", "r") as f:
-                    examples = [json.loads(line) for line in f]
-                self.examples = examples
-            for doc in documents:
-                doc = json.loads(doc)
-                func_name = doc["name"]
-                for example in self.examples:
-                    ok = False
-                    for ans in example["answers"]:
-                        if ans["name"] == func_name:
-                            ok = True
-                            break
-                    if ok:
-                        sampled_examples.append(example)
-                        break
+        user_formatter= Formatter(
+            FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL,
+            functions=FunctionFormatter(format_type=self.format_type),
+            call_format=Handler._CALL_FORMAT_MAP[self.format_type],
+            nest_prompt=Handler._NEST_CALL_MAP[self.format_type] if is_nested else ConstantFormatter(""),
+            example=GetFunctionExampleFormatter("data/DroidCall_train.jsonl", Handler._FUNCTION_CALL_MAP[self.format_type]) if add_examples else ConstantFormatter(""),
+            user_query=FieldFormatter("query"),
+        )
+        
+        user_formatter.call_format.set_sep(self.sep_start, self.sep_end)
+        if isinstance(user_formatter.example, GetFunctionExampleFormatter):
+            user_formatter.example.call_formatter.set_sep(self.sep_start, self.sep_end)
+        
+        tools = [json.loads(doc) for doc in documents]
+        user_message = user_formatter.format(
+            query=user_query,
+            tools=tools
+        )
+        
+        # nest_prompt = NEST_PROMT if is_nested else ""
+        # example_text = ""
+        # if add_examples:
+        #     sampled_examples = []
+        #     if not hasattr(self, "examples"):
+        #         with open("data/DroidCall_train.jsonl", "r") as f:
+        #             examples = [json.loads(line) for line in f]
+        #         self.examples = examples
+        #     for doc in documents:
+        #         doc = json.loads(doc)
+        #         func_name = doc["name"]
+        #         for example in self.examples:
+        #             ok = False
+        #             for ans in example["answers"]:
+        #                 if ans["name"] == func_name:
+        #                     ok = True
+        #                     break
+        #             if ok:
+        #                 sampled_examples.append(example)
+        #                 break
             
-            example_text =  "Here is some examples:\n" + "\n".join(f"query: {example["query"]} \nanwsers: {json.dumps(example["answers"], ensure_ascii=False, indent=2)}" for example in sampled_examples)
+        #     example_text =  "Here is some examples:\n" + "\n".join(f"query: {example["query"]} \nanwsers: {json.dumps(example["answers"], ensure_ascii=False, indent=2)}" for example in sampled_examples)
                         
         message = [
             {
@@ -66,11 +111,11 @@ class Handler:
             },
             {
                 "role": "user",
-                "content": PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents), nest_prompt=nest_prompt, example=example_text, call_format=JSON_CALL_FORMAT)
+                "content": user_message # PROMPT_FOR_CHATMODEL.substitute(user_query=user_query, functions="\n".join(documents), nest_prompt=nest_prompt, example=example_text, call_format=JSON_CALL_FORMAT)
             },
         ]
         
-        # print(f"{Colors.BOLD}message: {json.dumps(message, indent=2, ensure_ascii=False)}{Colors.ENDC}")
+        print(f"{Colors.BOLD}user_message: {user_message}\n\n{Colors.ENDC}")
         return message
 
     def inference(self, user_query: str, documents: List[str]) -> str:
@@ -177,17 +222,27 @@ parser.add_argument('--top_p', type=float, default=1, help='top_p for generation
 parser.add_argument('--max_tokens', type=int, default=500, help='max tokens for generation')
 parser.add_argument('--is_nested', action="store_true", help='use nested function calling or not')
 parser.add_argument('--add_examples', action="store_true", help='add examples in the prompt or not')
+parser.add_argument('--format_type', type=str, default="json", help='format type for the prompt', choices=["json", "code"])
+parser.add_argument('--sep_start', type=str, default="", help='start separator for function call')
+parser.add_argument('--sep_end', type=str, default="", help='end separator for function call')
 arg = parser.parse_args()
 
 
 HANDLER = arg.handler # "openai"
 MODEL_NAME = arg.model_name # "gpt-4o-mini"
 
-from utils.retriever import ChromaDBRetriever, FakeRetriever
+from utils.retriever import ChromaDBRetriever, FakeRetriever, Retriever
 
 RETRIEVER_MAP = {
     "chromadb": ChromaDBRetriever,
     "fake": FakeRetriever
+}
+
+from utils.extract import *
+
+CALL_EXTRACTOR_MAP: Dict[str, CallExtractor] = {
+    "json": JsonCallExtractor(),
+    "code": CodeCallExtractor()
 }
 
             
@@ -203,6 +258,9 @@ def check_format(ans):
 def main():
     handler = HANDLER_MAP[HANDLER](MODEL_NAME, arg.path, arg.adapter_path, arg.temperature, arg.top_p, arg.max_tokens,
                                    arg.is_nested, arg.add_examples)
+    handler.set_format_type(arg.format_type)
+    handler.set_sep(arg.sep_start, arg.sep_end)
+    call_extractor = CALL_EXTRACTOR_MAP[arg.format_type]
     
     all_instructions = []
     with open(arg.input, "r") as f:
@@ -226,7 +284,7 @@ def main():
         while retry_num > 0:
             response = handler.inference(query, documents)
             print(f"{Colors.OKGREEN}response: {response}{Colors.ENDC}\n\n")
-            res = [call for call in extract_and_parse_jsons(response)]
+            res = [call for call in call_extractor.extract(response)]
             if res and all([check_format(ans) for ans in res]):
                 break
             retry_num -= 1
