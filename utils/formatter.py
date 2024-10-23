@@ -68,14 +68,31 @@ class JsonFunctionCallingFormatter(FunctionCallingFormatter):
         calls = kwargs.get('calls', [])
         return self.sep_start + json.dumps(calls, ensure_ascii=False, indent=2) + self.sep_end
     
+from typing import Any
 
 class CodeFunctionCallingFormatter(FunctionCallingFormatter):
-    def _format_call(self, call: Dict[str, str])->str:
+    def _format_call(self, call: Dict[str, Any])->str:
         call_id = call.get('id', 0)
         function_name = call.get('name', '')
         arguments = call.get('arguments', {})
-        
-        argument_str = ', '.join(f'{key}="{value}"' for key, value in arguments.items())
+
+        # Helper function to format each argument based on its type
+        def format_arg(value):
+            if isinstance(value, str):
+            # 检查字符串是否以'#'开头，并且后面是数字
+                if value.startswith("#") and value[1:].strip().isdigit():
+                    return f'result{value[1:].strip()}'  # 返回格式为"resultn"的字符串
+                else:
+                    return f'"{value}"'  # 对其他字符串添加引号
+            elif isinstance(value, list):
+                return json.dumps(value, ensure_ascii=True)  # Format lists to string representation
+            elif isinstance(value, dict):
+                return json.dumps(value, ensure_ascii=True)
+                
+            return str(value)  # Use str for other data types
+
+        # Format all arguments using format_arg function
+        argument_str = ', '.join(f'{key}={format_arg(value)}' for key, value in arguments.items())
         result_str = f'result{call_id} = {function_name}({argument_str})'
         
         return result_str
@@ -284,8 +301,8 @@ class MessageTemplate:
 from transformers import AutoTokenizer
 
 if __name__ == "__main__":
-    message_template = MessageTemplate.get_message_template("code")
-    message_template.set_function_call_sep("<tool_call>", "</tool_call>")
+    message_template = MessageTemplate.get_message_template("json")
+    # message_template.set_function_call_sep("<tool_call>", "</tool_call>")
     
     with open("data/DroidCall_train.jsonl") as f:
         all_data = [json.loads(line) for line in f]

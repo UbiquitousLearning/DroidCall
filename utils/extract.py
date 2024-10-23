@@ -4,19 +4,32 @@ import re
 import pyparsing as pp
 from pyparsing import pyparsing_common as ppc
 
-def convert_value(value):
-    # 尝试将值转换为浮点数，如果实际上是整数，则转换为整数
-    # print(f"value: {value}")
+def convert_value(val):
+    # 首先检查是否符合"resultn"的模式，其中n是一个或多个数字
+    match = re.match(r'^result(\d+)$', val)
+    if match:
+        # 如果匹配成功，返回形如"#n"的字符串
+        return f"#{match.group(1)}"
+    
+    if isinstance(val, str):
+        if val.lower() in ["none", "null"]:
+            return None
+        if val.lower() == "true":
+            return True
+        if val.lower() == "false":
+            return False
+
     try:
-        float_value = float(value)
-        if float_value.is_integer():
-            return int(float_value)
-        return float_value
-    except ValueError:
-        match = re.match(r'result(\d+)', value)
-        if match:
-            return f"#{match.group(1)}"
-        return value
+        # 尝试使用json.loads来解析复杂数据类型
+        return json.loads(val)
+    except json.JSONDecodeError:
+        # 处理非JSON格式的字符串和数字
+        if val.isdigit():
+            return int(val)
+        try:
+            return float(val)
+        except ValueError:
+            return val  # 返回原字符串，针对非数字字符串
 
 def extract_calls(calls_str):
     # 使用正则表达式来匹配字符串中的多个调用部分
@@ -29,11 +42,15 @@ def extract_calls(calls_str):
         call_id, function_name, arguments_str = match.groups()
         
         # 处理参数字符串，转换成字典
-        # 更新正则表达式，以匹配带引号的字符串或不带引号的数字/文本，包括浮点数
-        args_pattern = r'(\w+)=(".*?"|[\w.]+)'
-        arguments = {
-            arg_name: convert_value(arg_val.strip('"')) for arg_name, arg_val in re.findall(args_pattern, arguments_str)
-        }
+        # 调整正则表达式，以匹配带引号的字符串、JSON数据或不带引号的数字/文本，包括浮点数
+        args_pattern = r'(\w+)=((?:\[.*?\]|{.*?}|".*?"|[^,]+))'
+        arguments = {}
+
+        for arg_name, arg_val in re.findall(args_pattern, arguments_str):
+            arg_val = arg_val.strip()  # 移除首尾空格
+            if arg_val.endswith(','):  # 移除末尾逗号
+                arg_val = arg_val[:-1].strip()
+            arguments[arg_name] = convert_value(arg_val)
         
         # 构建并返回结果字典
         yield {

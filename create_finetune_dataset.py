@@ -5,7 +5,20 @@ import argparse
 import os
 from utils.formatter import MessageTemplate
 
+parser = argparse.ArgumentParser(description='Process chat instructions')
+parser.add_argument('input_file', type=str, help='Input file path')
+parser.add_argument('output_file', type=str, help='Output file path')
+parser.add_argument('--tokenizer', type=str, default=None, help='Path to tokenizer')
+parser.add_argument('--handler', type=str, default='xlam', choices=["xlam", "glaive", "DroidCall"], help='Handler for formatting the instructions')
+parser.add_argument("--api_num", type=int, default=4, help="Number of API to retrieve in a query")
+parser.add_argument("--format", type=str, default="json", choices=["json", "code"], help="Format of the output")
+parser.add_argument("--sep_start", type=str, default="<tool_call>", help="Start separator for function call")
+parser.add_argument("--sep_end", type=str, default="</tool_call>", help="End separator for function call")
+
+args = parser.parse_args()
+
 from utils.prompt import SYSTEM_PROMPT_FOR_FUNCTION_CALLING, JSON_NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
+import random
 
 SYSTEM_PROMPT = SYSTEM_PROMPT_FOR_FUNCTION_CALLING
 NEST_PROMPT = JSON_NESTED_CALLING_PROMT
@@ -49,11 +62,38 @@ def xlam_wrapper(type:str="json", **kwargs):
         return chat
     
     return format_xlam_instruction
+
+def DroidCall_wrapper(type:str="json", api_file: str="data/api.jsonl", **kwargs):
+    message_template = MessageTemplate.get_message_template(type)
+    sep_start = kwargs.get("sep_start", "")
+    sep_end = kwargs.get("sep_end", "")
+    message_template.set_function_call_sep(sep_start, sep_end)
+    
+    name2api = {}
+    with open(api_file, 'r', encoding='utf-8') as f:
+        for line in f:
+            api = json.loads(line)
+            name2api[api["name"]] = api
+            
+    n_api = args.api_num
+    
+    def format_DroidCall_instruction(instruction):
+        tools = instruction["tools"]
+        used_names = [tool["name"] for tool in tools]
+        if len(tools) < n_api:
+            available_api_names = [api for api in name2api.keys() if api not in used_names]
+            additional_api_names = random.sample(available_api_names, min(n_api - len(tools), len(available_api_names)))
+            tools.extend([name2api[api_name] for api_name in additional_api_names])
+        instruction["tools"] = tools
+        chat = message_template.format(instruction)["message"]
+        return chat
+    
+    return format_DroidCall_instruction
         
 HANDLER_MAP = {
-    "xlam": xlam_wrapper("code", sep_start="<tool_call>", sep_end="</tool_call>"),
+    "xlam": xlam_wrapper(args.format, sep_start=args.sep_start, sep_end=args.sep_end),
     "glaive": format_glaive_instruction,
-    "DroidCall": xlam_wrapper("code", sep_start="<tool_call>", sep_end="</tool_call>"),
+    "DroidCall": DroidCall_wrapper(args.format, sep_start=args.sep_start, sep_end=args.sep_end),
 }
 
 def process_instructions(input_file, output_file, format_instruction, tokenizer_path=None):
@@ -70,28 +110,29 @@ def process_instructions(input_file, output_file, format_instruction, tokenizer_
             all = json.load(infile)
             instructions = all
             
+        output_is_jsonl = output_file.endswith('.jsonl')
+        formatted_instructions = []
+
         for instruction in instructions:
             # Format the instruction into a chat
             chat = format_instruction(instruction)
             
             if tokenizer:
                 text = tokenizer.apply_chat_template(chat, tokenize=False)
-            
-                # Write the chat to the output file
-                outfile.write(json.dumps({"text": text, "messages": chat}, ensure_ascii=False) + "\n")
+                formatted_instruction = {"text": text, "messages": chat}
             else:
-                outfile.write(json.dumps({"messages": chat}, ensure_ascii=False) + "\n")
+                formatted_instruction = {"messages": chat}
+            
+            if output_is_jsonl:
+                outfile.write(json.dumps(formatted_instruction, ensure_ascii=False) + "\n")
+            else:
+                formatted_instructions.append(formatted_instruction)
+        
+        if not output_is_jsonl:
+            json.dump(formatted_instructions, outfile, ensure_ascii=False, indent=2)
             
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Process chat instructions')
-    parser.add_argument('input_file', type=str, help='Input file path')
-    parser.add_argument('output_file', type=str, help='Output file path')
-    parser.add_argument('--tokenizer', type=str, default=None, help='Path to tokenizer')
-    parser.add_argument('--handler', type=str, default='xlam', choices=HANDLER_MAP.keys(), help='Handler for formatting the instructions')
-    
-    args = parser.parse_args()
-    
     # Fetch the appropriate handler function based on the command line argument
     selected_handler = HANDLER_MAP[args.handler]
     
