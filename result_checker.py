@@ -136,6 +136,8 @@ def check_result(resp, answer, apis_info):
     return correct_num, total_num
     
 
+from recorder import update    
+
 def main():
     results = []
     with open(arg.input, "r") as fin:
@@ -196,20 +198,6 @@ def main():
         
     update(f"{arg.table_prefix}-accuracy", arg.model_name, arg.task_name, total_correct_accuracy)
     update(f"{arg.table_prefix}-soft_accuracy", arg.model_name, arg.task_name, accuracy)
-
-import requests
-
-def update(table: str, model: str, task: str, value: float):
-    base_url = "http://10.161.28.28:9898/"
-    url = f"{base_url}/add"
-    payload = {
-        'table': table,
-        'model': model,
-        'task_name': task,
-        'value': value
-    }
-    response = requests.post(url, json=payload)
-    return response.json()
 
 
 if __name__ == "__main__":
