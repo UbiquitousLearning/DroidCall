@@ -57,24 +57,59 @@ class LLMRetriever(Retriever):
             json.dumps(self.apis[name]) for name in apis if name in self.apis
         ]
         return documents
-                
+
+from chromadb import Documents, EmbeddingFunction, Embeddings
+from transformers import AutoTokenizer, AutoModel
+from torch import Tensor
+
+class GTEEmbedding(EmbeddingFunction):
+    def __init__(self, path: str, device: str="cpu"):
+        self.tokenizer = AutoTokenizer.from_pretrained(path)
+        self.model = AutoModel.from_pretrained(path, device_map=device)
     
+    @staticmethod
+    def average_pool(last_hidden_states: Tensor,
+                 attention_mask: Tensor) -> Tensor:
+        last_hidden = last_hidden_states.masked_fill(~attention_mask[..., None].bool(), 0.0)
+        return last_hidden.sum(dim=1) / attention_mask.sum(dim=1)[..., None]
+    
+    def __call__(self, input_texts: Documents) -> Embeddings:
+        # Tokenize the input texts
+        batch_dict = self.tokenizer(input_texts, max_length=512, padding=True, truncation=True, return_tensors='pt')
+
+        outputs = self.model(**batch_dict.to(self.model.device))
+        # tokens = self.tokenizer.tokenize(input_texts[0])
+        # print(f"tokens: {tokens}\n\n")
+        # print(f"{batch_dict.input_ids.tolist()}\n\n")
+        embeddings = GTEEmbedding.average_pool(outputs.last_hidden_state, batch_dict['attention_mask'])
+        
+        return embeddings.tolist()
 
 class ChromaDBRetriever(Retriever):
-    def __init__(self, data_path: str) -> None:
+    def __init__(self, data_path: str, name: str="functions", distance_type: str="l2", emb_func=None) -> None:
         super().__init__()
         self.client = chromadb.PersistentClient(path=data_path)
-        self.collection = self.client.get_or_create_collection('functions')
+        if not emb_func:
+            self.collection = self.client.get_or_create_collection(
+                name=name,
+                metadata={"hnsw:space": distance_type}, # l2 is the default
+            )
+        else:
+            self.collection = self.client.get_or_create_collection(
+                name=name,
+                metadata={"hnsw:space": distance_type}, # l2 is the default
+                embedding_function=emb_func
+            )
     
     def retrieve(self, query: str, n_results: int) -> List[str]:
         results = self.collection.query(
-            query_texts=[query],
+            query_texts=query,
             n_results=n_results,
         )
-        docs = results['documents'][0]
+        metas = results["metadatas"][0]
         documents = [
-            json.dumps(json.loads(doc), indent=2, ensure_ascii=False)
-            for doc in docs
+            json.dumps(json.loads(meta["json_str"]), indent=2, ensure_ascii=False)
+            for meta in metas
         ]
         return documents
 

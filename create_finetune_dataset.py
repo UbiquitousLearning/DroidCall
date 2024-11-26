@@ -4,6 +4,7 @@ from transformers import AutoTokenizer
 import argparse
 import os
 from utils.formatter import MessageTemplate
+import random
 
 parser = argparse.ArgumentParser(description='Process chat instructions')
 parser.add_argument('input_file', type=str, help='Input file path')
@@ -11,7 +12,7 @@ parser.add_argument('output_file', type=str, help='Output file path')
 parser.add_argument('--tokenizer', type=str, default=None, help='Path to tokenizer')
 parser.add_argument('--handler', type=str, default='xlam', choices=["xlam", "glaive", "DroidCall"], help='Handler for formatting the instructions')
 parser.add_argument("--api_num", type=int, default=4, help="Number of API to retrieve in a query")
-parser.add_argument("--format", type=str, default="json", choices=["json", "code"], help="Format of the output")
+parser.add_argument("--format", type=str, default="json", choices=["json", "code", "code_short", "json_short"], help="Format of the output")
 parser.add_argument("--sep_start", type=str, default="<tool_call>", help="Start separator for function call")
 parser.add_argument("--sep_end", type=str, default="</tool_call>", help="End separator for function call")
 
@@ -84,6 +85,8 @@ def DroidCall_wrapper(type:str="json", api_file: str="data/api.jsonl", **kwargs)
             available_api_names = [api for api in name2api.keys() if api not in used_names]
             additional_api_names = random.sample(available_api_names, min(n_api - len(tools), len(available_api_names)))
             tools.extend([name2api[api_name] for api_name in additional_api_names])
+        
+        random.shuffle(tools)
         instruction["tools"] = tools
         chat = message_template.format(instruction)["message"]
         return chat
@@ -113,12 +116,16 @@ def process_instructions(input_file, output_file, format_instruction, tokenizer_
         output_is_jsonl = output_file.endswith('.jsonl')
         formatted_instructions = []
 
+        total_num = 0
+        total_token_num = 0
         for instruction in instructions:
             # Format the instruction into a chat
+            total_num += 1
             chat = format_instruction(instruction)
             
             if tokenizer:
                 text = tokenizer.apply_chat_template(chat, tokenize=False)
+                total_token_num += len(tokenizer(text)["input_ids"])
                 formatted_instruction = {"text": text, "messages": chat}
             else:
                 formatted_instruction = {"messages": chat}
@@ -130,6 +137,10 @@ def process_instructions(input_file, output_file, format_instruction, tokenizer_
         
         if not output_is_jsonl:
             json.dump(formatted_instructions, outfile, ensure_ascii=False, indent=2)
+        
+        print(f"Total number of instructions: {total_num}")
+        if tokenizer:
+            print(f"Average number of tokens: {total_token_num/total_num}")
             
 
 if __name__ == "__main__":

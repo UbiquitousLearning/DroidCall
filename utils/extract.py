@@ -202,7 +202,7 @@ if __name__ == "__main__":
     <tool_call>
     result0 = get_contact_info(name="Benjamin", key="email")
     result1 = web_search(query="Benjamin latest paper on economics", engine="google")
-    result2 = add(a=1, b=2.45, c=result0)
+    result2 = add(a=1, b=2.45, c=result0, query="111,111")
     </tool_call><|im_end|>
     """
     extractor = CallExtractor.get_extractor("code")

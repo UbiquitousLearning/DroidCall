@@ -137,8 +137,14 @@ def check_result(resp, answer, apis_info):
     
 
 def main():
+    results = []
     with open(arg.input, "r") as fin:
-        results = [json.loads(line) for line in fin]
+        for line in fin:
+            try:
+                results.append(json.loads(line))
+            except:
+                pass
+            
     
     apis_info = {}
     with open(arg.api, "r") as fin:

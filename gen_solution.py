@@ -44,34 +44,61 @@ class Handler:
     def set_sep(self, sep_start: str, sep_end: str):
         self.sep_start = sep_start
         self.sep_end = sep_end
+        
+    _SYSTEM_PROMPT_MAP = {
+        "json": SYSTEM_PROMPT_FOR_FUNCTION_CALLING,
+        "code": SYSTEM_PROMPT_FOR_FUNCTION_CALLING,
+        "code_short": SHORT_SYSTEM_PROMPT_FOR_FUNCTION_CALLING,
+        "json_short": SHORT_SYSTEM_PROMPT_FOR_FUNCTION_CALLING
+    }
+        
+    _CALL_PROMPT_MAP = {
+        "json": FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL,
+        "code": FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL,
+        "code_short": SHORT_FUNCTION_CALLING_PROMPT,
+        "json_short": FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL
+    }
     
     _CALL_FORMAT_MAP = {
         "json": ConstantCallingFormatter(JSON_CALL_FORMAT),
-        "code": ConstantCallingFormatter(CODE_CALL_FORMAT)
+        "code": ConstantCallingFormatter(CODE_CALL_FORMAT),
+        "code_short": ConstantFormatter(""),
+        "json_short": ConstantFormatter("")
     }
     
     _NEST_CALL_MAP = {
         "json": ConstantFormatter(JSON_NESTED_CALLING_PROMT),
-        "code": ConstantFormatter(CODE_NESTED_CALLING_PROMPT)
+        "code": ConstantFormatter(CODE_NESTED_CALLING_PROMPT),
+        "code_short": ConstantFormatter(""),
+        "json_short": ConstantFormatter("")
     }
     
     _FUNCTION_CALL_MAP = {
         "json": JsonFunctionCallingFormatter(),
-        "code": CodeFunctionCallingFormatter()
+        "code": CodeFunctionCallingFormatter(),
+        "code_short": CodeFunctionCallingFormatter(),
+        "json_short": JsonFunctionCallingFormatter()
     }
         
     def format_message(self, user_query: str, documents: List[str], is_nested: bool=False, 
                        add_examples: bool = False) -> str:
+        func_format_type = self.format_type
+        if self.format_type in ["code", "code_short"]:
+            func_format_type = "code"
+        if self.format_type in ["json", "json_short"]:
+            func_format_type = "json"
+            
         user_formatter= Formatter(
-            FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL,
-            functions=FunctionFormatter(format_type=self.format_type),
+            Handler._CALL_PROMPT_MAP[self.format_type],
+            functions=FunctionFormatter(func_format_type),
             call_format=Handler._CALL_FORMAT_MAP[self.format_type],
             nest_prompt=Handler._NEST_CALL_MAP[self.format_type] if is_nested else ConstantFormatter(""),
             example=GetFunctionExampleFormatter("data/DroidCall_train.jsonl", Handler._FUNCTION_CALL_MAP[self.format_type]) if add_examples else ConstantFormatter(""),
             user_query=FieldFormatter("query"),
         )
         
-        user_formatter.call_format.set_sep(self.sep_start, self.sep_end)
+        if isinstance(user_formatter.call_format, FunctionCallingFormatter):
+            user_formatter.call_format.set_sep(self.sep_start, self.sep_end)
         if isinstance(user_formatter.example, GetFunctionExampleFormatter):
             user_formatter.example.call_formatter.set_sep(self.sep_start, self.sep_end)
         
@@ -81,33 +108,11 @@ class Handler:
             tools=tools
         )
         
-        # nest_prompt = NEST_PROMT if is_nested else ""
-        # example_text = ""
-        # if add_examples:
-        #     sampled_examples = []
-        #     if not hasattr(self, "examples"):
-        #         with open("data/DroidCall_train.jsonl", "r") as f:
-        #             examples = [json.loads(line) for line in f]
-        #         self.examples = examples
-        #     for doc in documents:
-        #         doc = json.loads(doc)
-        #         func_name = doc["name"]
-        #         for example in self.examples:
-        #             ok = False
-        #             for ans in example["answers"]:
-        #                 if ans["name"] == func_name:
-        #                     ok = True
-        #                     break
-        #             if ok:
-        #                 sampled_examples.append(example)
-        #                 break
-            
-        #     example_text =  "Here is some examples:\n" + "\n".join(f"query: {example["query"]} \nanwsers: {json.dumps(example["answers"], ensure_ascii=False, indent=2)}" for example in sampled_examples)
-                        
+                   
         message = [
             {
                 "role": "system",
-                "content": SYSTEM_PROMPT
+                "content": Handler._SYSTEM_PROMPT_MAP[self.format_type]
             },
             {
                 "role": "user",
@@ -115,7 +120,6 @@ class Handler:
             },
         ]
         
-        print(f"{Colors.BOLD}user_message: {user_message}\n\n{Colors.ENDC}")
         return message
 
     def inference(self, user_query: str, documents: List[str]) -> str:
@@ -167,8 +171,9 @@ class HFCausalLMHandler(Handler):
         # This method is used to retrive model response for each model.
         message = self.format_message(user_query, documents, self.is_nested, self.add_examples)
         
-        if "gemma-2-2b-it" in self.model_name:
-            message = message[1:] # gemmma-2-2b-it not support system prompt
+        # we modify gemma-2-2b-it's prompt template to make it compatible with system prompt
+        # if "gemma-2-2b-it" in self.model_name:
+        #     message = message[1:] # gemmma-2-2b-it not support system prompt
         
         tokenized_chat = self.tok.apply_chat_template(message, tokenize=True, add_generation_prompt=True, return_tensors="pt")
         # count input tokens
@@ -180,16 +185,20 @@ class HFCausalLMHandler(Handler):
                                         top_p=self.top_p, temperature=self.temperature,
                                         do_sample=True)
         else:
+            self.model.generation_config.temperature=None
+            self.model.generation_config.top_p=None
+            self.model.generation_config.top_k=None
             outputs = self.model.generate(tokenized_chat.to(self.model.device), 
                                         max_new_tokens=self.max_tokens, 
-                                        do_sample=False)
-        text = self.tok.decode(outputs[0])
+                                        do_sample=False, temperature=0, top_p=None, top_k=None)
+        
+        text = self.tok.decode(outputs[0][len(tokenized_chat[0]):], skip_special_tokens=True)
         # count total tokens
         self.total_tokens += outputs.size(1)
         self.inference_count += 1
         prefix = self.tok.apply_chat_template(message, tokenize=False, add_generation_prompt=True)
-        response = text[len(prefix):]
-        return response
+        print(f"{Colors.BOLD} {prefix}\n\n{Colors.ENDC}")
+        return text
     
 
 class LoraCausalLMHandler(HFCausalLMHandler):
@@ -222,7 +231,7 @@ parser.add_argument('--top_p', type=float, default=1, help='top_p for generation
 parser.add_argument('--max_tokens', type=int, default=500, help='max tokens for generation')
 parser.add_argument('--is_nested', action="store_true", help='use nested function calling or not')
 parser.add_argument('--add_examples', action="store_true", help='add examples in the prompt or not')
-parser.add_argument('--format_type', type=str, default="json", help='format type for the prompt', choices=["json", "code"])
+parser.add_argument('--format_type', type=str, default="json", help='format type for the prompt', choices=["json", "code", "code_short", "json_short"])
 parser.add_argument('--sep_start', type=str, default="", help='start separator for function call')
 parser.add_argument('--sep_end', type=str, default="", help='end separator for function call')
 arg = parser.parse_args()
@@ -242,7 +251,9 @@ from utils.extract import *
 
 CALL_EXTRACTOR_MAP: Dict[str, CallExtractor] = {
     "json": JsonCallExtractor(),
-    "code": CodeCallExtractor()
+    "code": CodeCallExtractor(),
+    "code_short": CodeCallExtractor(),
+    "json_short": JsonCallExtractor()
 }
 
             

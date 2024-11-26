@@ -24,7 +24,11 @@ class Formatter:
         raise AttributeError(f"'Formatter' object has no attribute '{name}'")
     
     def format(self, **kwargs)->str:
-        return self.template.substitute(**self._get_sub_formatters_result(**kwargs))
+        format_res = self._get_sub_formatters_result(**kwargs)
+        # for k, v in format_res.items():
+        #     print(f"{k}: {v}\n\n")
+        # print(f"template: {self.template}")
+        return self.template.substitute(format_res)
     
 
 class ConstantFormatter(Formatter):
@@ -204,6 +208,15 @@ class FunctionFormatter(Formatter):
 
 
 class MessageTemplate:
+    SYSTEM_MESSAGE_MAP: Dict[str, Formatter] = {
+        "json_with_examples": ConstantFormatter(SYSTEM_PROMPT_FOR_FUNCTION_CALLING),
+        "code_with_examples": ConstantFormatter(SYSTEM_PROMPT_FOR_FUNCTION_CALLING),
+        "json": ConstantFormatter(SYSTEM_PROMPT_FOR_FUNCTION_CALLING),
+        "code": ConstantFormatter(SYSTEM_PROMPT_FOR_FUNCTION_CALLING),
+        "code_short": ConstantFormatter(SHORT_SYSTEM_PROMPT_FOR_FUNCTION_CALLING),
+        "json_short": ConstantFormatter(SHORT_SYSTEM_PROMPT_FOR_FUNCTION_CALLING)
+    }
+    
     USER_MESSAGE_MAP: Dict[str, Formatter] = {
         "json_with_examples": Formatter(
             FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL,
@@ -236,6 +249,22 @@ class MessageTemplate:
             nest_prompt=ConstantFormatter(CODE_NESTED_CALLING_PROMPT),
             example=ConstantFormatter(""),
             user_query=FieldFormatter("query"),
+        ),
+        "code_short": Formatter(
+            SHORT_FUNCTION_CALLING_PROMPT,
+            functions=FunctionFormatter(format_type="code"),
+            call_format=ConstantFormatter(""),
+            nest_prompt=ConstantFormatter(""),
+            example=ConstantFormatter(""),
+            user_query=FieldFormatter("query"),
+        ),
+        "json_short": Formatter(
+            SHORT_FUNCTION_CALLING_PROMPT,
+            functions=FunctionFormatter(format_type="json"),
+            call_format=ConstantFormatter(""),
+            nest_prompt=ConstantFormatter(""),
+            example=ConstantFormatter(""),
+            user_query=FieldFormatter("query"),
         )
     }
     
@@ -243,12 +272,14 @@ class MessageTemplate:
         "json_with_examples": JsonFunctionCallingFormatter(),
         "code_with_examples": CodeFunctionCallingFormatter(),
         "json": JsonFunctionCallingFormatter(),
-        "code": CodeFunctionCallingFormatter()
+        "code": CodeFunctionCallingFormatter(),
+        "code_short": CodeFunctionCallingFormatter(),
+        "json_short": JsonFunctionCallingFormatter()
     }
     
     @staticmethod
     def get_message_template(type: str)->"MessageTemplate":
-        system_message_formatter = ConstantFormatter(SYSTEM_PROMPT_FOR_FUNCTION_CALLING)
+        system_message_formatter = MessageTemplate.SYSTEM_MESSAGE_MAP[type]
         user_message_formatter = MessageTemplate.USER_MESSAGE_MAP[type]
         assistant_message_formatter = MessageTemplate.ASSISTANT_MESSAGE_MAP[type]
         return MessageTemplate(system_message_formatter, user_message_formatter, assistant_message_formatter)
@@ -260,7 +291,9 @@ class MessageTemplate:
     
     def set_function_call_sep(self, sep_start: str, sep_end: str):
         self.assistant_formatter.set_sep(sep_start, sep_end)
-        self.user_formatter.call_format.set_sep(sep_start, sep_end)
+        
+        if isinstance(self.user_formatter.call_format, FunctionCallingFormatter):
+            self.user_formatter.call_format.set_sep(sep_start, sep_end)
         # self.user_formatter.nest_prompt.set_sep(sep_start, sep_end)
         if isinstance(self.user_formatter.example, GetFunctionExampleFormatter):
             self.user_formatter.example.call_formatter.set_sep(sep_start, sep_end)
@@ -301,21 +334,35 @@ class MessageTemplate:
 from transformers import AutoTokenizer
 
 if __name__ == "__main__":
-    message_template = MessageTemplate.get_message_template("json")
-    # message_template.set_function_call_sep("<tool_call>", "</tool_call>")
+    # message_template = MessageTemplate.get_message_template("code_short")
+    # message_template.set_function_call_sep("$", "$")
     
-    with open("data/DroidCall_train.jsonl") as f:
-        all_data = [json.loads(line) for line in f]
+    # with open("data/DroidCall_train.jsonl") as f:
+    #     all_data = [json.loads(line) for line in f]
     
-    import random
-    random.seed(55)
-    data = random.choice(all_data)
-    print(f"data: {json.dumps(data, ensure_ascii=False, indent=2)}")
+    # import random
+    # random.seed(55)
+    # data = random.choice(all_data)
+    # print(f"data: {json.dumps(data, ensure_ascii=False, indent=2)}")
     
-    print("*"*50)
+    # print("*"*50)
     
-    tokenizer = AutoTokenizer.from_pretrained("/data/share/Qwen2.5-1.5B-Instruct")
-    message = message_template.format(data)
-    text = tokenizer.apply_chat_template(message["message"], tokenize=False)
-    print(f"text: {text}")
+    # # tokenizer = AutoTokenizer.from_pretrained("/data/share/Qwen2.5-1.5B-Instruct")
+    # tokenizer = AutoTokenizer.from_pretrained("/data/shrelic/data/xllm-best_ckpt/xllm_sft")
+    # message = message_template.format(data)
+    # text = tokenizer.apply_chat_template(message["message"], tokenize=False, add_generation_prompt=False)
+    # token_ids = tokenizer.tokenize(text)
+    # print(f"text: {text}")
+    
+    # print(f"len: {len(token_ids)}")
+    
+    func_formatter = FunctionFormatter(format_type="code")
+    all_api = {}
+    with open("data/api.jsonl", 'r', encoding='utf-8') as f:
+        for line in f:
+            api = json.loads(line)
+            all_api[api["name"]] = api
+    
+    print(func_formatter.format(tools=[all_api["ACTION_SET_ALARM"], all_api["web_search"], all_api["send_email"], all_api["dial"]]))
+    
     

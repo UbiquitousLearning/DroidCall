@@ -217,6 +217,10 @@ If none of the function can be used, point it out. If the given question lacks t
 also point it out. Remember you should not use functions that is not suitable for the query and only return the function call in tools call sections. 
 """
 
+SHORT_SYSTEM_PROMPT_FOR_FUNCTION_CALLING = """
+You are an expert in composing functions.
+"""
+
 JSON_NESTED_CALLING_PROMT = """
 If an argument is a response from a previous function call, you can reference it in the following way like the argument value of arg2 in func1:
 [
@@ -294,6 +298,19 @@ $example
 
 If there is a way to achieve the purpose using the given functions, please provide the function call(s) in the above format.
 REMEMBER TO ONLY RETURN THE FUNCTION CALLS LIKE THE EXAMPLE ABOVE, NO OTHER INFORMATION SHOULD BE RETURNED.
+
+Now my query is: $user_query
+"""
+
+SHORT_FUNCTION_CALLING_PROMPT = """
+Here is a list of functions:
+$functions
+
+$call_format
+
+$nest_prompt
+
+$example
 
 Now my query is: $user_query
 """
