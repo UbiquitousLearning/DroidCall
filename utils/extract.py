@@ -5,10 +5,8 @@ import pyparsing as pp
 from pyparsing import pyparsing_common as ppc
 
 def convert_value(val):
-    # 首先检查是否符合"resultn"的模式，其中n是一个或多个数字
     match = re.match(r'^result(\d+)$', val)
     if match:
-        # 如果匹配成功，返回形如"#n"的字符串
         return f"#{match.group(1)}"
     
     if isinstance(val, str):
@@ -20,39 +18,31 @@ def convert_value(val):
             return False
 
     try:
-        # 尝试使用json.loads来解析复杂数据类型
         return json.loads(val)
     except json.JSONDecodeError:
-        # 处理非JSON格式的字符串和数字
         if val.isdigit():
             return int(val)
         try:
             return float(val)
         except ValueError:
-            return val  # 返回原字符串，针对非数字字符串
+            return val
 
 def extract_calls(calls_str):
-    # 使用正则表达式来匹配字符串中的多个调用部分
-    # 每个调用的格式为: result{id} = {function_name}({arguments})
     pattern = r'result(\d+) = (\w+)\((.*?)\)'
     matches = re.finditer(pattern, calls_str)
     
-    # 遍历匹配结果
     for match in matches:
         call_id, function_name, arguments_str = match.groups()
         
-        # 处理参数字符串，转换成字典
-        # 调整正则表达式，以匹配带引号的字符串、JSON数据或不带引号的数字/文本，包括浮点数
         args_pattern = r'(\w+)=((?:\[.*?\]|{.*?}|".*?"|[^,]+))'
         arguments = {}
 
         for arg_name, arg_val in re.findall(args_pattern, arguments_str):
-            arg_val = arg_val.strip()  # 移除首尾空格
-            if arg_val.endswith(','):  # 移除末尾逗号
+            arg_val = arg_val.strip()
+            if arg_val.endswith(','):  
                 arg_val = arg_val[:-1].strip()
             arguments[arg_name] = convert_value(arg_val)
         
-        # 构建并返回结果字典
         yield {
             "id": int(call_id),
             "name": function_name,
@@ -104,7 +94,6 @@ def get_json_obj(text: str):
     for _, l, r in get_json_obj.jsonDoc.scanString(text):
         json_string = text[l:r]
         try:
-            # 尝试解析找到的JSON字符串
             parsed_data = json.loads(json_string)
             return parsed_data
         except json.JSONDecodeError as e:
@@ -157,15 +146,12 @@ def extract_and_parse_jsons(text):
     for _, l, r in extract_and_parse_jsons.jsonDoc.scanString(text):
         json_string = text[l:r]
         try:
-            # 尝试解析找到的JSON字符串
             parsed_data = json.loads(json_string)
 
-            # 如果解析结果是列表，则返回列表中的每个项
             if isinstance(parsed_data, list):
                 for item in parsed_data:
                     yield item
             else:
-                # 如果不是列表，则直接返回解析结果
                 yield parsed_data
         except json.JSONDecodeError as e:
             print(f"JSON decoding error: {e}")

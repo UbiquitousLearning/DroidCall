@@ -29,7 +29,6 @@ class Executor:
         if call.name in self.functions:
             func = self.functions[call.name]
             try:
-                # 将参数字典展开为关键字参数
                 result_value = func(**call.arguments)
                 return Result(state="Success", message="Function executed successfully.", return_type=str(type(result_value)), return_value=result_value)
             except TypeError as e:
