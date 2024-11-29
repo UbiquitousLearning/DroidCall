@@ -273,12 +273,9 @@ class DataFilter(ABC):
     
     def filter(self, data: Iterable[Dict[str, str]])->Iterable[Dict[str, str]]:
         for d in self.preprocess(data):
-            print(f"{Colors.WARNING}filter: {self}, started validate{Colors.ENDC}")
             if self.validate(d):
-                print(f"{Colors.WARNING}filter: {self}, end validate (pass){Colors.ENDC}")
                 yield d
             else:
-                print(f"{Colors.WARNING}filter: {self}, end validate (fail){Colors.ENDC}")
                 if self.fail_callback:
                     self.fail_callback(d)
                     
@@ -301,11 +298,9 @@ class CombinedFilter(DataFilter):
     
 class JsonExtractor(DataFilter):
     def preprocess(self, data: Iterable[Dict[str, str]]) -> Iterable[Dict[str, str]]:
-        print(f"{Colors.BOLD} started to extract jsons{Colors.ENDC}")
         for d in data:
             # if d["finish_reason"] == "stop":
             for item in extract_and_parse_jsons(d["text"]):
-                print(f"{Colors.BOLD} extract !!{Colors.ENDC}")
                 yield item
             else:
                 if self.fail_callback:

@@ -3,6 +3,7 @@ from string import Template
 from transformers import AutoTokenizer
 import argparse
 import os
+os.sys.path.append(os.path.dirname(os.path.abspath(__file__))+"/../")
 from utils.formatter import MessageTemplate
 import random
 
@@ -10,11 +11,11 @@ parser = argparse.ArgumentParser(description='Process chat instructions')
 parser.add_argument('input_file', type=str, help='Input file path')
 parser.add_argument('output_file', type=str, help='Output file path')
 parser.add_argument('--tokenizer', type=str, default=None, help='Path to tokenizer')
-parser.add_argument('--handler', type=str, default='xlam', choices=["xlam", "glaive", "DroidCall"], help='Handler for formatting the instructions')
+parser.add_argument('--handler', type=str, default='DroidCall', choices=["xlam", "glaive", "DroidCall"], help='Handler for formatting the instructions')
 parser.add_argument("--api_num", type=int, default=4, help="Number of API to retrieve in a query")
-parser.add_argument("--format", type=str, default="json", choices=["json", "code", "code_short", "json_short"], help="Format of the output")
-parser.add_argument("--sep_start", type=str, default="<tool_call>", help="Start separator for function call")
-parser.add_argument("--sep_end", type=str, default="</tool_call>", help="End separator for function call")
+parser.add_argument("--format", type=str, default="code_short", choices=["json", "code", "code_short", "json_short"], help="Format of the output")
+parser.add_argument("--sep_start", type=str, default="$", help="Start separator for function call")
+parser.add_argument("--sep_end", type=str, default="$", help="End separator for function call")
 
 args = parser.parse_args()
 
@@ -101,6 +102,11 @@ HANDLER_MAP = {
 
 def process_instructions(input_file, output_file, format_instruction, tokenizer_path=None):
     tokenizer = AutoTokenizer.from_pretrained(tokenizer_path) if tokenizer_path else None
+    # if directory of output file does not exist, create it
+    output_dir = os.path.dirname(output_file)
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+        
     with open(input_file, 'r', encoding='utf-8') as infile, open(output_file, 'w', encoding='utf-8') as outfile:
         instructions = []
         _, ext = os.path.splitext(input_file)

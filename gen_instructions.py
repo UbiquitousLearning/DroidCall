@@ -55,7 +55,7 @@ def check_format(data):
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--sample_file", type=str, default="data/function_call/processed_xlam.jsonl")
 argparser.add_argument("--api_file", type=str, default="data/api.jsonl")
-argparser.add_argument("--tokenizer_path", type=str, default="../xLLM/tokenizer_qwen2")
+argparser.add_argument("--tokenizer_path", type=str, default="path/to/tokenizer")
 argparser.add_argument("--output", type=str, default="data/instructions.jsonl")
 argparser.add_argument("--num_generate", type=int, default=300)
 argparser.add_argument("--similarity_threshold", type=float, default=0.75)
@@ -142,8 +142,10 @@ if __name__ == "__main__":
         # this is initial collection
         while len(data) <= 0:
             for d in collector.collect(NUM_GENERATE, "init collection", num_generated=len(data), once=True):
-                data.append(d)
                 d["tools"] = [tool]
+                for id in range(len(d["answers"])):
+                    d["answers"][id]["id"] = id
+                data.append(d)
                 output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
                 output_file.flush()
         
@@ -162,8 +164,10 @@ if __name__ == "__main__":
             
         collector.switch(GEN_PROMPT, QuerySampler(data, SAMPLE_NUM))
         for d in collector.collect(NUM_GENERATE, "gen collection", len(data)):
-            data.append(d)
             d["tools"] = [tool]
+            for id in range(len(d["answers"])):
+                d["answers"][id]["id"] = id
+            data.append(d)
             output_file.write(json.dumps(d, ensure_ascii=False)+"\n")
             output_file.flush()
         

@@ -3,7 +3,7 @@ import pandas as pd
 import os
 
 app = Flask(__name__)
-data_folder = 'data_files'
+data_folder = 'tables'
 os.makedirs(data_folder, exist_ok=True)
 
 def get_csv_path(table_name):

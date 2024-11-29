@@ -56,7 +56,7 @@ def check_format(data):
 argparser = argparse.ArgumentParser()
 argparser.add_argument("--sample_file", type=str, default="data/function_call/processed_xlam.jsonl")
 argparser.add_argument("--api_file", type=str, default="data/api.jsonl")
-argparser.add_argument("--tokenizer_path", type=str, default="../xLLM/tokenizer_qwen2")
+argparser.add_argument("--tokenizer_path", type=str, default="path/to/tokenizer")
 argparser.add_argument("--output", type=str, default="data/instructions_complex.jsonl")
 argparser.add_argument("--num_generate", type=int, default=80)
 argparser.add_argument("--similarity_threshold", type=float, default=0.75)

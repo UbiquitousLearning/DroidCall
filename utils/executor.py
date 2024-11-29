@@ -23,23 +23,4 @@ class Executor:
         self.functions[func.__name__] = func
     
     def execute(self, call: Call)->Result:
-        if self.verbose:
-            print(f"executing call: {call}")
-            
-        if call.name in self.functions:
-            func = self.functions[call.name]
-            try:
-                result_value = func(**call.arguments)
-                return Result(state="Success", message="Function executed successfully.", return_type=str(type(result_value)), return_value=result_value)
-            except TypeError as e:
-                return Result(state="Error", message=f"Argument mismatch: {e}", return_type="None")
-            except Exception as e:
-                return Result(state="Error", message=str(e), return_type="None")
-        else:
-            # sent request to the server
-            response = requests.post(self.url, json={"name": call.name, "arguments": call.arguments})
-            if response.status_code != 200:
-                return Result(state="Error", message=f"Request failed with status code {response.status_code}", return_type="None")
-            
-            result = response.json()
-            return Result(**result)
+        pass # TODO: Implement this

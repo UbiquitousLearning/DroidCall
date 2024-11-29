@@ -1,8 +1,8 @@
 from string import Template
-from utils.extract import get_json_obj
 import json
 from openai import OpenAI
-from tqdm import tqdm
+import os
+os.sys.path.append(os.path.dirname(os.path.abspath(__file__))+"/../")
 from utils.prompt import ANNOTATION_PROMPT
 
 PROMPT = Template(ANNOTATION_PROMPT)

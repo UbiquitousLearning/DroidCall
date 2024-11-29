@@ -5,6 +5,9 @@ from transformers.utils import get_json_schema
 from transformers import AutoTokenizer, AutoModel
 from torch import Tensor
 
+import os
+os.sys.path.append(os.path.dirname(os.path.abspath(__file__))+"/../")
+
 from utils.retriever import GTEEmbedding
 import chromadb.utils.embedding_functions as ef
 from utils.formatter import FunctionFormatter

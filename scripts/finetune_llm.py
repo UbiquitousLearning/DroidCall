@@ -11,7 +11,7 @@ import random
 random.seed(42)
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--model_path", type=str, default="/data/share/Qwen2.5-1.5B-Instruct", help="Path to the model")
+parser.add_argument("--model_path", type=str, default="path/to/model", help="Path to the model")
 parser.add_argument("--model_name", type=str, default="Qwen2.5-1.5B-Instruct", help="Model name")
 parser.add_argument("--data_path", type=str, default="data/finetune/DroidCall_train.jsonl", help="Path to the data")
 parser.add_argument("--eval_steps", type=int, default=200, help="Number of steps to evaluate")
@@ -22,13 +22,13 @@ parser.add_argument("--lora_dropout", type=float, default=0.08, help="Lora dropo
 parser.add_argument("--per_device_train_batch_size", type=int, default=2, help="Per device train batch size")
 parser.add_argument("--gradient_accumulation_steps", type=int, default=32, help="Gradient accumulation steps")
 parser.add_argument("--learning_rate", type=float, default=1.41e-5, help="Learning rate")
-parser.add_argument("--epochs", type=int, default=3, help="Number of epochs")
+parser.add_argument("--epochs", type=int, default=24, help="Number of epochs")
 parser.add_argument("--per_device_eval_batch_size", type=int, default=1, help="Per device eval batch size")
 parser.add_argument("--additional_lora", type=str, default="", help="merge additional lora adapter")
 arg = parser.parse_args()
 
-DATA_PATH = arg.data_path # "data/function_call/instruction_train.jsonl" # "data/function_call/glaive_train.jsonl" 
-MODEL_PATH = arg.model_path # "/data/share/Qwen2-1.5B-Instruct" # "model/HuggingFaceTB/SmolLM"
+DATA_PATH = arg.data_path 
+MODEL_PATH = arg.model_path 
 OUTPUT_DIR = "checkpoint"
 
 LEARNING_RATE = arg.learning_rate
@@ -49,7 +49,7 @@ if arg.use_wandb:
         # set the wandb project where this run will be logged
         project="function calling",
         
-        entity="shrelic",
+        entity="huggingface",
 
         # track hyperparameters and run metadata
         config={
@@ -64,9 +64,12 @@ if arg.use_wandb:
         }
     )
     
+# module to finetune
 TARGET_MODULES_MAP = {
-    "minicpm": ["q_a_proj", "q_b_proj", "kv_a_proj_with_mqa", "kv_b_proj"],
-    "phi-3.5": ["qkv_proj", "gate_up_proj", "down_proj"],
+    "Qwen": "all-linear",
+    "llama": "all-linear",
+    "phi": "all-linear",
+    "minicpm": "all-linear",
     "gemma-2-2b-it": "all-linear",
 }
 
@@ -77,7 +80,7 @@ def remove_system_prompt(example):
     return {"messages": messages}
 
 PROCESS_MAP = {
-    "gemma-2-2b-it": remove_system_prompt,
+    # "gemma-2-2b-it": remove_system_prompt, # we modified prompt template of gemma-2-2b-it so no need to remove system prompt
 }
 
 ATTN_MAP = {
@@ -103,7 +106,7 @@ if __name__ == "__main__":
     tokenizer = AutoTokenizer.from_pretrained(MODEL_PATH, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
     model = AutoModelForCausalLM.from_pretrained(MODEL_PATH, 
-                                                 device_map="auto", 
+                                                 device_map="cuda", 
                                                  attn_implementation=ATTN_MAP.get(lower_name, "flash_attention_2"),
                                                  torch_dtype=torch.bfloat16,
                                                  trust_remote_code=True)
@@ -118,7 +121,7 @@ if __name__ == "__main__":
     target_modules = None
     
     for k, v in TARGET_MODULES_MAP.items():
-        if k in arg.model_name.lower():
+        if k.lower() in arg.model_name.lower():
             target_modules = v
             break
     
@@ -133,7 +136,7 @@ if __name__ == "__main__":
     
     peft_model = get_peft_model(model, peft_config)
     
-    print(f"target modules: {peft_model.targeted_module_names}")
+    # print(f"target modules: {peft_model.targeted_module_names}")
     
     sft_config = SFTConfig(
         output_dir=f"{OUTPUT_DIR}/{arg.model_name}",
@@ -145,7 +148,7 @@ if __name__ == "__main__":
         per_device_eval_batch_size=PER_DEVICE_EVAL_BATCH_SIZE,
         gradient_accumulation_steps=GRADIENT_ACCUMULATION_STEPS,
         num_train_epochs=EPOCHS,
-        logging_steps=2,
+        logging_steps=1,
         save_steps=arg.eval_steps,
         load_best_model_at_end=True,
         eval_strategy="steps",

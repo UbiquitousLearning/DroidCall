@@ -168,24 +168,3 @@ if __name__ == "__main__":
             # print(f"{api["answers"]}")
             f.write(json.dumps(api, ensure_ascii=False) + "\n")
     
-    # signature = inspect.signature(ACTION_EDIT_CONTACT)
-    # print(signature)
-    # print(signature.parameters)
-    # inspect.Parameter
-    # for param in signature.parameters.values():
-    #     print(f"param: {param.name} \ndefault: {param.default} \nannotation: {param.annotation.__name__}\n")
-    
-    # doc = parse(ACTION_EDIT_CONTACT.__doc__)
-    # print(f"short_description: {doc.short_description}\n\n")
-    # print(f"long_description: {doc.long_description}\n\n")
-    # print(f"description: {doc.description}\n\n")
-    
-    # for param in doc.params:
-    #     print(f"args: {param.arg_name} \n\tdefault: {param.default}  \n\ttype: {param.type_name}  \n\tis_optional: {param.is_optional} \n\n")
-    
-    # if doc.returns:
-    #     print(f"returns: type: {doc.returns.type_name} is_generator: {doc.returns.is_generator} desc: {doc.returns.description}\n\n")
-    
-    # for example in doc.examples:
-    #     print(f"example: {example.snippet} {example.description}\n\n")
-
