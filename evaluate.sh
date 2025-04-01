@@ -1,25 +1,20 @@
 #!/bin/bash
 
 declare -a model_names=(
-    "Model-A"
-    "Model-B"
+    "gpt-4-turbo"
 )
 
 declare -a model_paths=(
-    "path/to/Model-A"
-    "path/to/Model-B"
+    ""
 )
 
 declare -a task_names=(
-    "task1"
-    "task2"
+    "few-shot"
 )
 
 declare -a adapter_paths=(
-    "adapter1"
-    "adapter2"
+    "adapter"
 )
-
 
 max_length=0
 for array in model_names task_names model_paths adapter_paths; do
@@ -28,7 +23,6 @@ for array in model_names task_names model_paths adapter_paths; do
         max_length=$length
     fi
 done
-
 
 for array in model_names task_names model_paths adapter_paths; do
     eval "length=\${#$array[@]}"
@@ -41,9 +35,8 @@ for array in model_names task_names model_paths adapter_paths; do
     fi
 done
 
-
 RETRIEVE_DOC_NUM=4
-HANDLER=hf_causal_lm
+HANDLER=openai
 IS_NESTED=true
 ADD_EXAMPLES=true
 TABLE_PREFIX="naive"
@@ -51,6 +44,8 @@ FORMAT_TYPE="json"
 SEP_START="$"
 SEP_END="$"
 
+# 确保 results 目录存在
+mkdir -p results
 
 for ((i=0; i<max_length; i++)); do
     MODEL_NAME=${model_names[i]}
@@ -69,23 +64,38 @@ for ((i=0; i<max_length; i++)); do
         FEW_SHOT_FLAG="--add_examples"
     fi
 
-    # run gen_solution.py
-    python gen_solution.py \
-        --retrieve_doc_num "$RETRIEVE_DOC_NUM" \
-        --model_name "$MODEL_NAME" \
-        --handler "$HANDLER" \
-        --path "$MODEL_PATH" \
-        --adapter_path "$ADAPTER_PATH" \
-        --task_name "$TASK_NAME" \
-        --format_type "$FORMAT_TYPE" \
-        --sep_start "$SEP_START" \
-        --sep_end "$SEP_END" \
-        $NEST_FLAG $FEW_SHOT_FLAG
+    # 定义相关文件路径
+    OUTPUT_FILE="results/${HANDLER}_${MODEL_NAME}_${TASK_NAME}_result.jsonl"
+    PASS_FILE="results/${HANDLER}_${MODEL_NAME}_${TASK_NAME}_result_pass.jsonl"
+    FAIL_FILE="results/${HANDLER}_${MODEL_NAME}_${TASK_NAME}_result_fail.jsonl"
 
-    # run result_checker.py
-    python result_checker.py \
-        --input "results/${HANDLER}_${MODEL_NAME}_${TASK_NAME}_result.jsonl" \
-        --model_name "$MODEL_NAME" \
-        --task_name "$TASK_NAME" \
-        --table_prefix "$TABLE_PREFIX"
+    # 检查是否需要运行 gen_solution.py
+    if [ ! -f "$OUTPUT_FILE" ]; then
+        echo "Running gen_solution.py for ${MODEL_NAME} ${TASK_NAME}..."
+        python gen_solution.py \
+            --retrieve_doc_num "$RETRIEVE_DOC_NUM" \
+            --model_name "$MODEL_NAME" \
+            --handler "$HANDLER" \
+            --path "$MODEL_PATH" \
+            --adapter_path "$ADAPTER_PATH" \
+            --task_name "$TASK_NAME" \
+            --format_type "$FORMAT_TYPE" \
+            --sep_start "$SEP_START" \
+            --sep_end "$SEP_END" \
+            $NEST_FLAG $FEW_SHOT_FLAG
+    else
+        echo "Skipping gen_solution.py for ${MODEL_NAME} ${TASK_NAME}, output file already exists."
+    fi
+
+    # 检查是否需要运行 result_checker.py
+    if [ ! -f "$PASS_FILE" ] || [ ! -f "$FAIL_FILE" ]; then
+        echo "Running result_checker.py for ${MODEL_NAME} ${TASK_NAME}..."
+        python result_checker.py \
+            --input "$OUTPUT_FILE" \
+            --model_name "$MODEL_NAME" \
+            --task_name "$TASK_NAME" \
+            --table_prefix "$TABLE_PREFIX"
+    else
+        echo "Skipping result_checker.py for ${MODEL_NAME} ${TASK_NAME}, result files already exist."
+    fi
 done

@@ -37,6 +37,8 @@ python extract.py --handler xlam \
 ```
 
 ### Data Generation
+> **Note:** If you don't want to generate data by yourself and want to use our generated data, you can download the data from [DroidCall](https://huggingface.co/datasets/mllmTeam/DroidCall). Put `DroidCall_*.jsonl` in the `data` directory.
+
 Once you've done the above steps, you can use the following command to generate simple data
 ```bash
 python gen_instructions.py --tokenizer_path path/to/tokenizer \  # we use qwen2 tokenizer
@@ -100,6 +102,7 @@ python scripts/merge_model.py --base_model path/to/base_model --adapter path/to/
 >Note: the original prompt template of gemme does not support system prompt, so we ajust its prompt template.
 
 ## evaluation
+> **Note:** If you don't want to generate `annotated_api.jsonl` yourself, you can just download it from [DroidCall](https://huggingface.co/datasets/mllmTeam/DroidCall) and put it in `data` directory.
 
 When compare the parameters with the ground truth, some parameters are considered to be correct if they are semantically similar (e.g. title, query). So when conducting evaluations, we need to know whether a certain parameter should be compared precisely or semantically. We use LLM to annotate every parameters, use the following command to generate `annotated_api.jsonl` in `data` directory:
 ```bash
@@ -164,3 +167,50 @@ CUDA_VISIBLE_DEVICES=... ./evaluate.sh
 ```
 
 Result can be found at `results` and `table` folder.
+
+For example, if you want to test the Zero-shot `gemma-2-2b-it` and `gemma-3-4b-it`, you can modify the `evaluate.sh` as following:
+```bash
+declare -a model_names=(
+    "gemma-2-2b-it"  # just give a model name you want
+    "gemma-3-4b-it"  
+)
+
+declare -a model_paths=(
+    "path/to/gemma-3-4b-it" # path to model
+    "path/to/gemma-3-4b-it"
+)
+
+declare -a task_names=(
+    "zero-shot"     # just give a task name yourself
+    "zero-shot"
+)
+
+declare -a adapter_paths=(
+    "adapter-A"  # if no lora adapter, this will be ignored
+    "adapter-B"
+)
+
+# the number of function docs to retrieve
+RETRIEVE_DOC_NUM=4 
+
+# this can be one of
+#  - openai: use openai api
+#  - deepseek: use deepseek api
+#  - hf_causal_lm: use huggingface transformers
+#  - lora_causal_lm: use huggingface transformers with a lora adapter
+HANDLER=hf_causal_lm
+
+# few-shot or not
+ADD_EXAMPLES=false # this is zero-shot
+
+# table name to record result
+# this determines the CSV file name where server.py stores the results.
+TABLE_PREFIX="naive" # just give a name
+
+# this can be one of
+# - json: this is good when testing zero-shot accuracy
+# - json_short
+# - code
+# - code_short: default format for finetuning
+FORMAT_TYPE="json"
+```

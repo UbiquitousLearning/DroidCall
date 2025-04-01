@@ -9,7 +9,6 @@ from utils.extract import extract_and_parse_jsons
 from transformers import AutoTokenizer, AutoModelForCausalLM
 import argparse
 import random
-from peft import PeftModelForCausalLM
 from utils import Colors
 from utils.extract import get_json_obj
 from utils.prompt import SYSTEM_PROMPT_FOR_FUNCTION_CALLING, JSON_NESTED_CALLING_PROMT, FUNCTION_CALLING_PROMPT_FOR_CHAT_MODEL, JSON_CALL_FORMAT
@@ -206,6 +205,7 @@ class LoraCausalLMHandler(HFCausalLMHandler):
                  is_nested: bool=False, add_examples: bool = False) -> None:
         super().__init__(model_name, path, adapter_path, temperature, top_p, max_tokens, is_nested, add_examples)
         self.base_model = self.model
+        from peft import PeftModelForCausalLM
         self.model = PeftModelForCausalLM.from_pretrained(self.base_model, adapter_path)
 
 

@@ -37,7 +37,10 @@ class LLMRetriever(Retriever):
                 self.apis[item["name"]] = item
         
         self.apis_text = "\n".join(
-            [f"name: {api['name']}\ndescription: {api['description'].strip().split("\n")[0]}\n\n" for api in self.apis.values()]
+            [
+                f"name: {api['name']}\ndescription: {api['description'].strip().splitlines()[0]}\n\n" 
+                for api in self.apis.values()
+            ]
         )
         
         # print(self.apis_text)    
