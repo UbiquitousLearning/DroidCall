@@ -176,7 +176,7 @@ declare -a model_names=(
 )
 
 declare -a model_paths=(
-    "path/to/gemma-3-4b-it" # path to model
+    "path/to/gemma-2-2b-it" # path to model
     "path/to/gemma-3-4b-it"
 )
 
